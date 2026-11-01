@@ -1187,34 +1187,54 @@ def main():
         if len(raw)>8192:raise ValueError('Request too large')
         request=json.loads(raw)
         name=request.get('name');new_name=request.get('new_name');access=request.get('access')
-        valid=lambda n:isinstance(n,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',n) and n.lower() not in ('global','homes','printers','print
-        raw=sys.stdin.read(8193)
-        if len(raw)>8192:raise ValueError('Request too large')
-        request=json.loads(raw);name=request.get('name')
-        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        valid=lambda n:isinstance(n,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',n)
+        if not valid(name) or not valid(new_name):raise ValueError('Invalid share name')
+        if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid permissions')
         current=read_db()
-        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        matches=[i for i in current if isinstance(i,dict) and i.get('name')==name]
         if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        if any(i.get('name','').casefold()==new_name.casefold() and i.get('name')!=name for i in current if isinstance(i,dict)):raise ValueError('Share name already exists')
+        samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+        for user in access:
+            if user not in samba:raise ValueError('Samba account not found: '+user)
+            pwd.getpwnam(user)
+        item=matches[0]
+        mount=check_volume(item.get('volume'))
+        folder=pathlib.Path(item.get('folder') or str(mount/'PiNAS Shares'/name))
+        if folder.parent!=mount/'PiNAS Shares' or folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:raise ValueError('Unsafe managed share folder')
         oldconf=CONF.read_text()
-        # Match only a complete, exact managed Samba section; never touch unrelated shares.
         section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
         found=list(section.finditer(oldconf))
-        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
-        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        if len(found)!=1:raise ValueError('Managed share section missing or ambiguous')
+        if new_name!=name:
+            existing=run(['/usr/bin/testparm','-s']).stdout
+            if any(line.strip().casefold()=='['+new_name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+        rw=[u for u,p in access.items() if p=='rw']
+        stanza='['+new_name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+        if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+        stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+        newconf=oldconf[:found[0].start()]+stanza+oldconf[found[0].end():]
         olddb=DB.read_text()
+        oldacl=run(['/usr/bin/getfacl','-p',str(folder)]).stdout
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
         try:
-            atomic(CONF,updated,0o644)
+            run(['/usr/bin/setfacl','-b',str(folder)])
+            run(['/usr/bin/setfacl','-k',str(folder)])
+            run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
+            atomic(CONF,newconf,0o644)
             run(['/usr/bin/testparm','-s'])
             run(['/usr/bin/systemctl','reload','smbd'])
-            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+            item['name']=new_name;item['access']=access;item['folder']=str(folder)
+            atomic(DB,json.dumps(current,indent=2),0o600)
         except Exception:
             atomic(CONF,oldconf,0o644)
             atomic(DB,olddb,0o600)
+            try:subprocess.run(['/usr/bin/setfacl','--restore=-'],input=oldacl,text=True,capture_output=True,timeout=15,check=True)
+            except Exception:pass
             try:run(['/usr/bin/systemctl','reload','smbd'])
             except Exception:pass
             raise
-        # Deliberately leave the share directory, ACLs and files untouched.
-        print(json.dumps({'ok':True,'files_preserved':True}));return
+        print(json.dumps({'ok':True,'name':new_name}));return
     if len(sys.argv)==2 and sys.argv[1]=='delete':
         raw=sys.stdin.read(8193)
         if len(raw)>8192:raise ValueError('Request too large')
