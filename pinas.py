@@ -1127,6 +1127,71 @@ if __name__=='__main__':
         raise SystemExit('Samba account creation failed: '+str(exc))
 """
 
+SMB_RESET_HELPER = r"""#!/usr/bin/env python3
+# Root-only Samba reset. No filesystem/share data deletion.
+import json, os, pathlib, shutil, subprocess, tempfile, time
+SMB=pathlib.Path('/etc/samba/smb.conf')
+SHARES=pathlib.Path('/etc/samba/pinas-shares.conf')
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+MARKER=pathlib.Path('/etc/samba/.pinas-managed')
+DEFAULT='''[global]
+   workgroup = WORKGROUP
+   server role = standalone server
+   security = user
+   map to guest = Bad User
+   guest account = nobody
+   server min protocol = SMB2
+   load printers = no
+   disable spoolss = yes
+   include = /etc/samba/pinas-shares.conf
+'''
+def atomic(path,content):
+    fd,tmp=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,0o644)
+        with os.fdopen(fd,'w') as out:
+            out.write(content);out.flush();os.fsync(out.fileno())
+        os.replace(tmp,path)
+    finally:
+        if os.path.exists(tmp):os.unlink(tmp)
+def reset():
+    if os.geteuid()!=0:raise RuntimeError('Root required')
+    if not SMB.is_file():raise RuntimeError('Samba configuration missing')
+    # Never replace an unmanaged installation automatically.
+    previous=SMB.read_text()
+    previous_shares=SHARES.read_text() if SHARES.exists() else None
+    if previous_shares is not None:
+        # Keep managed share definitions intact, including their permissions.
+        shares=previous_shares
+    else:
+        shares=''
+    stamp=time.strftime('%Y%m%d-%H%M%S',time.gmtime())
+    backup=SMB.with_name('smb.conf.pinas-backup-'+stamp)
+    if backup.exists():raise RuntimeError('Backup already exists')
+    shutil.copy2(SMB,backup)
+    if previous_shares is not None:
+        share_backup=SHARES.with_name('pinas-shares.conf.pinas-backup-'+stamp)
+        shutil.copy2(SHARES,share_backup)
+    try:
+        if not SHARES.exists():atomic(SHARES,shares)
+        atomic(SMB,DEFAULT)
+        subprocess.run(['/usr/bin/testparm','-s'],check=True,capture_output=True,text=True,timeout=20)
+        subprocess.run(['/usr/bin/systemctl','reload','smbd'],check=True,capture_output=True,text=True,timeout=20)
+        MARKER.write_text('managed by PiNAS\n')
+        os.chmod(MARKER,0o600)
+    except Exception:
+        atomic(SMB,previous)
+        if previous_shares is None:SHARES.unlink(missing_ok=True)
+        try:subprocess.run(['/usr/bin/systemctl','reload','smbd'],check=False,timeout=20)
+        except Exception:pass
+        raise
+    print(json.dumps({'ok':True,'backup':str(backup)}))
+if __name__=='__main__':
+    import sys
+    if len(sys.argv)!=2 or sys.argv[1]!='reset':raise SystemExit('Usage: pinas-smb-reset reset')
+    reset()
+"""
+
 NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
 # Root-only share broker. Strict input validation and independent mount checks.
 import json, os, pathlib, pwd, re, subprocess, sys, tempfile
