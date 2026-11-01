@@ -1641,7 +1641,7 @@ def install(args):
     share_helper.write_text(NAS_SHARE_HELPER)
     os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
     share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
-    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create, /usr/local/libexec/pinas-nas-share delete, /usr/local/libexec/pinas-nas-share edit\n')
     os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
         share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
