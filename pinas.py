@@ -970,7 +970,21 @@ class Handler(BaseHTTPRequestHandler):
             self.json(result);return
         if path=='/api/edit-share':
             name=data.get('name');new_name=data.get('new_name');access=data.get('access');password=data.get('admin_password')
-            if not all(isinstance(x,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',x) and x.lower() not in ('global','homes','printers','print
+            if not all(isinstance(x,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',x) for x in (name,new_name)):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
+                self.json({'error':'Assign at least one valid user access.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not set(access).issubset({u['name'] for u in nas_user_list()}):
+                self.json({'error':'Unknown NAS user.'},409);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be edited.'},404);return
+            try:edit_nas_share(name,new_name,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':new_name});return
+        if path=='/api/delete-share':
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
                 self.json({'error':'Invalid share name.'},400);return
