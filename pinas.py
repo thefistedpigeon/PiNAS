@@ -216,6 +216,13 @@ def create_nas_share(name,volume,access):
     if proc.returncode:
         raise RuntimeError('Share creation failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
 
+def edit_nas_share(name,new_name,access):
+    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','edit'],
+        input=json.dumps({'name':name,'new_name':new_name,'access':access}),
+        text=True,capture_output=True,timeout=35,check=False)
+    if proc.returncode:
+        raise RuntimeError('Share edit failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
+
 def delete_nas_share(name):
     proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','delete'],
         input=json.dumps({'name':name}),text=True,capture_output=True,timeout=35,check=False)
@@ -475,7 +482,7 @@ def hardware():
 PAGE=r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PiNAS · Raspberry Pi NAS</title><style>
 :root{--accent:#c51a4a;--bg:#f6f6f7;--surface:#fff;--ink:#24242a;--muted:#71717c;--line:#e6e6ea;--soft:#f1f1f4;--radius:13px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:var(--ink);background:var(--bg)}
 [data-theme=dark],[data-theme=dark-cb]{--bg:#17171c;--surface:#222229;--ink:#f5f5f7;--muted:#a7a7b3;--line:#3b3b46;--soft:#2c2c34}[data-theme=light-cb]{--bg:#fff;--surface:#fff;--ink:#101010;--muted:#333;--line:#555;--soft:#eee}[data-theme=dark-cb]{--bg:#080808;--surface:#161616;--ink:#fff;--muted:#ddd;--line:#aaa;--soft:#303030}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}header{height:72px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 max(24px,calc((100vw - 1220px)/2));gap:18px}.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:23px;white-space:nowrap}.mark{background:var(--accent);color:white;border-radius:12px;width:43px;height:43px;display:grid;place-items:center;font-size:27px}.brand small{font-size:11px;font-weight:500;color:var(--muted);display:block;letter-spacing:.6px}nav{display:flex;gap:4px;flex:1;overflow-x:auto;position:relative}nav button{background:transparent;border:0;color:var(--muted);padding:12px 14px;border-radius:8px;font-weight:600;white-space:nowrap}nav button.active{background:transparent;color:var(--ink)}main{max-width:1220px;margin:35px auto;padding:0 24px}h1{font-size:30px;letter-spacing:-1px;margin:0 0 7px}h2{font-size:17px;margin:0 0 16px}p{color:var(--muted);line-height:1.6}.subtitle{margin:0 0 27px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:23px;min-width:0}.wide{grid-column:1/-1}.span2{grid-column:span 2}.label{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.8px}.big{font-size:29px;font-weight:800;margin:11px 0}.small{font-size:12px;color:var(--muted)}.pill{display:inline-flex;padding:6px 10px;border-radius:30px;background:var(--soft);color:var(--muted);font-size:12px;font-weight:700}.good{color:#16864c}.bar{height:9px;background:var(--soft);border-radius:9px;overflow:hidden;margin:15px 0}.bar i{height:100%;display:block;background:var(--accent);border-radius:9px}.line{border-top:1px solid var(--line);padding:14px 0;display:flex;align-items:center;justify-content:space-between;gap:15px}.line:first-of-type{border-top:0}.line strong{display:block}.btn{background:var(--accent);border:1px solid var(--accent);color:white;padding:11px 17px;border-radius:8px;font-weight:700}.outline{background:transparent;border-color:var(--line);color:var(--ink)}.field{display:flex;flex-direction:column;gap:8px;margin:15px 0}.field input,.field select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;color:var(--ink);width:100%;max-width:440px}.hint{background:var(--soft);padding:15px;border-radius:9px;color:var(--muted);line-height:1.6}.danger{color:#c53540}.login{min-height:100vh;display:grid;place-items:center;padding:24px;background-position:center;background-size:cover}.login .card{width:min(100%,430px);box-shadow:0 14px 45px #00000017}.login h1{margin-top:22px}.login input{max-width:none}.login .btn{width:100%}.loginbg{background-image:var(--login-image)}.hidden{display:none!important}.footer{padding:26px 0;color:var(--muted);font-size:12px;display:flex;justify-content:space-between}input[type=color]{padding:3px;width:64px;height:42px}input[type=file]{max-width:440px}#message{margin-top:12px;color:var(--accent)}@media(max-width:900px){header{height:auto;flex-wrap:wrap;padding:12px 20px}nav{order:3;width:100%;flex-basis:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.span2{grid-column:1/-1}}@media(max-width:560px){.grid{grid-template-columns:1fr}.span2{grid-column:auto}main{padding:0 15px;margin:22px auto}header{padding:10px 15px}.card{padding:18px}}
-.icon-btn{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}.icon-btn:hover{border-color:var(--accent)}.modal-overlay{position:fixed;inset:0;z-index:1000;background:#0009;display:grid;place-items:center;padding:16px}.settings-modal{width:min(100%,570px);max-height:min(90vh,850px);display:flex;flex-direction:column;box-shadow:0 20px 80px #0005}.modal-heading,.modal-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.modal-heading h2{margin:0}.modal-actions{justify-content:flex-end;padding-top:16px;border-top:1px solid var(--line)}.settings-scroll{overflow-y:auto;padding:12px 2px}.settings-scroll h3{margin:24px 0 8px;font-size:1.1rem}.settings-scroll .field{max-width:100%}.stat .big{font-size:38px}.clickable{cursor:pointer}.clickable:hover{border-color:var(--accent)}.chart-title,.chart-footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.chart-title h2{margin:0}.cpu-chart{margin:18px 0 8px;height:170px}.cpu-chart svg{height:100%;width:100%}.chart-footer .big{margin:5px 0}.metric{text-align:center}.metric h2{text-align:left}.ring{display:block;max-width:170px;width:100%;margin:8px auto}.metric p{margin:5px 0}.overview .wide{grid-column:1/-1}@media(max-width:560px){.overview .wide{grid-column:auto}}
+.icon-btn{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}.icon-btn:hover{border-color:var(--accent)}.share-top-actions{display:flex;justify-content:flex-start;margin:12px 0}.share-icon-btn{display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0!important;width:42px!important;height:42px!important;min-width:42px!important;line-height:1!important;flex:none!important}.share-icon-btn svg{display:block!important;width:24px;height:24px;margin:0!important;flex:none}.share-entry{align-items:center}.share-meta{min-width:0;flex:1;overflow-wrap:anywhere}.share-meta>div{margin:4px 0}.share-meta strong{display:inline;font-weight:700}.share-actions{display:flex;gap:8px;align-items:center;flex:none}@media(max-width:550px){.share-entry{align-items:flex-start}.share-actions{flex-direction:column}}.modal-overlay{position:fixed;inset:0;z-index:1000;background:#0009;display:grid;place-items:center;padding:16px}.settings-modal{width:min(100%,570px);max-height:min(90vh,850px);display:flex;flex-direction:column;box-shadow:0 20px 80px #0005}.modal-heading,.modal-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.modal-heading h2{margin:0}.modal-actions{justify-content:flex-end;padding-top:16px;border-top:1px solid var(--line)}.settings-scroll{overflow-y:auto;padding:12px 2px}.settings-scroll h3{margin:24px 0 8px;font-size:1.1rem}.settings-scroll .field{max-width:100%}.stat .big{font-size:38px}.clickable{cursor:pointer}.clickable:hover{border-color:var(--accent)}.chart-title,.chart-footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.chart-title h2{margin:0}.cpu-chart{margin:18px 0 8px;height:170px}.cpu-chart svg{height:100%;width:100%}.chart-footer .big{margin:5px 0}.metric{text-align:center}.metric h2{text-align:left}.ring{display:block;max-width:170px;width:100%;margin:8px auto}.metric p{margin:5px 0}.overview .wide{grid-column:1/-1}@media(max-width:560px){.overview .wide{grid-column:auto}}
 
  .storage-disk-entry{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 0;border-top:1px solid var(--line)}.storage-disk-entry:first-of-type{border-top:0}.disk-properties{display:grid;gap:9px;min-width:0}.disk-properties>div{display:grid;grid-template-columns:135px minmax(0,1fr);gap:12px;align-items:baseline}.disk-properties span{color:var(--muted)}.disk-properties strong{font-weight:600;overflow-wrap:anywhere}.disk-management-action{display:flex;justify-content:space-between;align-items:center;gap:18px;border-top:1px solid var(--line);padding:18px 0}.disk-management-action>div{min-width:0}.disk-management-action p{margin:7px 0}.disk-management-action .btn{min-width:135px}.disk-management-action button:disabled{opacity:.45}@media(max-width:560px){.storage-disk-entry,.disk-management-action{align-items:stretch;flex-direction:column}.disk-properties>div{grid-template-columns:115px minmax(0,1fr)}}.storage-action{min-width:125px}.storage-volume{padding:10px 0;border-top:1px solid var(--line)}.wizard-option{display:block;padding:12px;border:1px solid var(--line);border-radius:var(--radius-sm);margin:8px 0}.wizard-option input{margin-right:8px}.wizard-option small{display:block;color:var(--muted);margin:5px 0 0 25px}.storage-wizard{width:min(100%,610px)}.disk-summary{padding:18px 0;border-top:1px solid var(--line)}.disk-summary:first-of-type{border-top:0}.disk-heading,.disk-foot{display:flex;justify-content:space-between;gap:12px;align-items:center}.disk-heading strong,.disk-heading .small{display:block}.disk-heading .small{margin-top:5px}.disk-usage{height:12px;margin:12px 0 8px}.disk-foot{color:var(--muted);font-size:12px}@media(max-width:560px){.disk-heading{align-items:flex-start;flex-direction:column}}
 .raid-wizard{width:min(100%,660px)}.raid-disk{display:flex;gap:12px;align-items:center;border:1px solid var(--line);padding:12px;border-radius:var(--radius-sm);margin:8px 0;cursor:pointer}.raid-disk span{display:flex;flex-direction:column;gap:4px}.raid-disk small{color:var(--muted)}.raid-disk input{accent-color:var(--accent)}
@@ -549,7 +556,7 @@ function updateHealth(){const uptime=document.getElementById('health-uptime'),os
 function updateOverview(){if(page!=='Overview')return;let disksCount=(info.disks||[]).filter(d=>d.type==='disk').length;for(let [id,value] of [['count-disks',disksCount],['count-shares',info.shares?.length||0],['count-users',info.nas_users??'—']]){let el=document.getElementById(id);if(el)el.textContent=value}let mem=info.memory_total||1,used=info.memory_used||0,temp=info.temperature;let a=document.getElementById('memory-ring'),b=document.getElementById('temp-ring');if(a)a.innerHTML=ring(Math.round(100*used/mem),Math.round(100*used/mem)+'%','Used','var(--accent)')+`<p class="small">${size(used)} / ${size(mem)}</p>`;if(b)b.innerHTML=ring(temp??0,temp==null?'—':temp+'°C','Temperature',temp>=75?'var(--danger)':temp>=65?'var(--warning)':'var(--success)')+`<p class="small">${temp==null?'Unavailable':temp>=75?'High temperature':temp>=65?'Elevated temperature':'Normal temperature'}</p>`;drawCPU();updateHealth()} 
 const head=(name,desc)=>`<h1>${name}</h1><p class="subtitle">${desc}</p>`;const disks=()=>(info.disks||[]).filter(d=>d.type==='disk'&&!/^(zram|ram|loop|nbd|sr|fd)\d*/i.test(d.name||'')&&!/^\/dev\/(zram|ram|loop)/i.test(d.path||''));
 function diskSummary(){return disks().map(d=>{let fs=d.filesystems||[],total=fs.reduce((a,f)=>a+(f.total||0),0),used=fs.reduce((a,f)=>a+(f.used||0),0),pct=total?Math.min(100,Math.round(used/total*100)):0;return `<div class="disk-summary"><div class="disk-heading"><div><strong>${esc(d.model||d.name||'Attached disk')}</strong><span class="small">${esc(d.path)} · ${size(d.size)} capacity</span></div><span class="small">${total?`${size(used)} used · ${size(Math.max(0,total-used))} available`:'Not mounted / usage unavailable'}</span></div><div class="bar disk-usage" role="progressbar" aria-label="${esc(d.model||d.name)} storage used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><div class="disk-foot"><span>${total?pct+'% used':'No mounted filesystem'}</span><span>${total?size(total)+' filesystem capacity':'Connect or mount a data volume'}</span></div></div>`}).join('')||'<p class="small">No attached data disks detected. The PiNAS system disk is intentionally hidden.</p>'}
-function render(){if(!navItems().includes(page))page='Overview';let body='';if(page==='Overview'){let used=info.memory_used||0,total=info.memory_total||1,pct=Math.min(100,Math.round(100*used/total)),temp=info.temperature,disksCount=disks().filter(d=>d.type==='disk').length;body=head('Overview','Your Raspberry Pi NAS at a glance.')+`<div class="grid overview">`+setupNotice()+`<div class="card stat clickable" role="button" tabindex="0" data-jump="Storage"><div class="label">Attached disks</div><div class="big" id="count-disks">${disksCount}</div><span class="small">Physical drives</span></div><div class="card stat clickable" role="button" tabindex="0" data-jump="Shares"><div class="label">Network shares</div><div class="big" id="count-shares">${info.shares?.length||0}</div><span class="small">Samba shares</span></div><div class="card stat clickable" role="button" tabindex="0" data-jump="Users"><div class="label">NAS users</div><div class="big" id="count-users">${info.nas_users??'—'}</div><span class="small">Samba accounts</span></div><div class="card wide"><div class="chart-title"><h2>CPU Activity</h2><span class="pill">Last ${cfg.cpu_history||10} minutes</span></div><div id="cpu-chart" class="cpu-chart" role="img" aria-label="CPU activity history"></div><div class="chart-footer"><div><div class="label">Current CPU</div><div class="big" id="cpu-current">—</div></div><div><div class="label">Peak in view</div><strong id="cpu-peak">—</strong></div></div></div><div class="card metric"><h2>Memory</h2><div id="memory-ring">${ring(pct,pct+'%','Used','var(--accent)')}<p class="small">${size(used)} / ${size(total)}</p></div></div><div class="card metric"><h2>CPU Temperature</h2><div id="temp-ring">${ring(temp==null?0:Math.min(100,temp),temp==null?'—':temp+'°C','Temperature',temp!=null&&temp>=75?'#c53540':temp!=null&&temp>=65?'#c28a22':'#299768')}<p class="small">${temp==null?'Unavailable':temp>=75?'High temperature':temp>=65?'Elevated temperature':'Normal temperature'}</p></div></div><div class="card metric"><h2>Raspberry Pi</h2><strong>${esc(info.model)}</strong><p class="small">${esc(info.hostname)}</p><span class="pill ${info.throttle==='throttled=0x0'?'good':''}">${esc(info.throttle||'Throttle status unavailable')}</span></div><div class="card wide"><h2>System health</h2><div class="health-grid"><div><span class="label">Uptime</span><strong id="health-uptime">${uptimeText(info.uptime_seconds)}</strong></div><div><span class="label">Operating system</span><strong id="health-os">${esc(info.os_name||'Unavailable')}</strong></div><div><span class="label">Kernel</span><strong id="health-kernel">${esc(info.kernel||'Unavailable')}</strong></div><div><span class="label">Load average (1 / 5 / 15 min)</span><strong id="health-load">${esc((info.load||[]).map(n=>Number(n).toFixed(2)).join(' / ')||'Unavailable')}</strong></div></div><p class="small">System information is read directly from Linux and refreshed with the Overview page. No additional monitoring service is required.</p></div><div class="card wide"><div class="chart-title"><h2>NAS service health</h2><button class="btn outline" id="refresh-service-health">Refresh</button></div><p class="small">Read-only service checks when Overview is opened or Refresh is pressed.</p><div id="service-health-warnings" role="status"></div><div id="service-health-results" role="status">Checking services…</div></div><div class="card wide"><h2>Storage at a glance</h2>${diskSummary()}</div></div>`}else if(page==='Storage'){body=head('Storage','Your attached data drives. System storage and swap devices are excluded.')+`<div class="card"><h2>Detected drives</h2>${disks().map((d,i)=>{const vs=d.volumes||[],v=vs.find(x=>x.mounts?.length)||vs[0],fs=[...new Set(vs.map(x=>x.fs).filter(Boolean))],mounts=vs.flatMap(x=>x.mounts||[]),persistent=vs.some(x=>x.persistent);return `<div class="storage-disk-entry"><div class="disk-properties"><div><span>Name:</span><strong>${esc(d.model||d.name||'Attached drive')}</strong></div><div><span>Capacity:</span><strong>${size(d.size)}</strong></div><div><span>File System:</span><strong>${esc(fs.join(', ')||'None detected')}</strong></div><div><span>Mount Status:</span><strong>${mounts.length?'Mounted':'Not mounted'}</strong></div><div><span>Mount Point:</span><strong>${esc(mounts.join(', ')||'—')}</strong></div><div><span>Persistent Mount:</span><strong>${persistent?'Yes':'No'}</strong></div></div><button class="btn outline storage-action" data-disk="${i}">Manage</button></div>`}).join('')||'<p>No attached data drives detected. System disks and zram swap are intentionally hidden.</p>'}</div><div class="card" style="margin-top:16px"><h2>Disk health</h2><p class="small">Read-only SMART health and temperature checks, on demand. Some USB adapters do not expose SMART data.</p><button class="btn outline" id="check-smart-health">Check disk health</button><div id="smart-health-results" style="margin-top:12px" role="status"></div></div><p class="hint">Existing filesystems can be adopted without formatting. Wiping and formatting remain unavailable until the privileged destructive-operation safeguards are implemented and tested.</p>`}else if(page==='RAID'){const arrays=info.raid||[];body=head('Software RAID','Discover and monitor Linux mdadm arrays. RAID creation remains protected.')+`<div class="card"><h2>Existing RAID arrays</h2>${arrays.map(r=>{const degraded=Number(r.degraded||0),healthy=r.state==='clean'||r.state==='active',status=degraded?'Degraded':healthy?'Healthy':'Check status';return `<div class="raid-array-entry"><div class="line"><div><strong>${esc(r.name)} · ${esc(r.level)}</strong><span class="small">${esc(r.state||'Unknown')} · ${r.raid_disks??'—'} expected members · ${r.members?.length??0} detected</span></div><span class="pill ${!degraded&&healthy?'good':''}">${status}</span></div><div class="disk-properties"><div><span>Sync activity:</span><strong>${esc(r.sync||'Unknown')}</strong></div><div><span>Degraded members:</span><strong>${degraded}</strong></div><div><span>Metadata:</span><strong>${esc(r.metadata||'—')}</strong></div></div>${r.progress!=null&&r.sync!=='idle'?`<div class="small">${esc(r.sync)}: ${r.progress}%</div><div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,r.progress))}%"></div></div>`:''}${(r.members||[]).map(m=>`<div class="line"><span>${esc(m.device)} · Slot ${esc(m.slot||'—')}</span><span class="small">${esc(m.state)}</span></div>`).join('')||'<p class="hint">No members reported by the kernel.</p>'}</div>`}).join('')||'<p>No mdadm arrays detected. You can review the RAID planner without changing any disks.</p>'}<button class="btn outline" id="raid-create">Plan a RAID array</button></div><p class="hint">This release is monitoring-only. RAID creation, deletion and member replacement remain disabled until device safeguards and recovery workflows have been tested. RAID is not a backup.</p>`}else if(page==='Shares'){body=head('Network shares','Samba sharing on your local network.')+`<div class="card"><h2>Configured Samba shares</h2><div class="share-top-actions"><button class="btn outline icon-btn" id="create-nas-share" title="Create share" aria-label="Create share">${CREATE_SHARE_ICON}</button></div>${(info.shares||[]).map(s=>{const d=(info.share_details||[]).find(x=>x.name===s);return `<div class="line"><div><strong>${esc(s)}</strong>${d?`<span class="small">${esc(d.volume_label||'Data storage')} · ${Object.entries(d.access||{}).map(([u,p])=>esc(u)+': '+(p==='rw'?'Read & Write':'Read Only')).join(' · ')}</span>`:''}</div><div class="share-actions"><span class="pill">SMB</span><button class="btn outline icon-btn" data-delete-share="${esc(s)}" title="${d?'Remove share':'External share — not managed by PiNAS'}" aria-label="Remove share ${esc(s)}" ${d?'':'disabled'}>${DELETE_SHARE_ICON}</button></div></div>`}).join('')||'<p>No Samba shares detected.</p>'}</div><p class="hint">Shares are created in a dedicated folder on the selected mounted disk. Access is enforced using Samba rules and Linux ACLs. Existing files are not modified.</p>`}else if(page==='Users'){body=head('User Management','Manage PiNAS administrators and NAS users.')+`<div class="user-top-actions"><button class="btn outline add-user-button" id="add-nas-user">${ADD_USER_ICON}<span>Add New User</span></button><button class="btn outline add-user-button" id="add-admin-user">${ADD_USER_ICON}<span>Add Admin User</span></button></div><div class="user-management-cards"><div class="card"><h2>Administrators</h2><p>Accounts authorised to manage PiNAS settings and storage.</p>${(info.admin_user_list||[]).map(u=>`<div class="line"><div><strong>${esc(u.display_name||u.name)}</strong><span class="small">@${esc(u.name)}</span></div><button class="btn outline edit-user-button" data-edit-admin="${esc(u.name)}">${EDIT_USER_ICON}<span>Edit User</span></button></div>`).join('')||'<p>No administrator accounts listed.</p>'}</div><div class="card"><h2>Users</h2><p>NAS accounts for accessing shared folders. Share permissions are managed from the Shares page.</p>${(info.nas_user_list||[]).map(u=>`<div class="line"><div><strong>${esc(u.display_name||u.name)}</strong><span class="small">@${esc(u.name)}</span></div><button class="btn outline edit-user-button" data-edit-nas="${esc(u.name)}">${EDIT_USER_ICON}<span>Edit User</span></button></div>`).join('')||'<p>No NAS users configured yet.</p>'}</div></div>`}else if(page==='Applications'){body=head('Applications','Start simple, then expand your NAS as needed.')+`<div class="grid">${['Scheduled backups','NFS sharing','MiniDLNA',...(info.capabilities?.curated_apps?['Curated apps (future release)']:[])].map(x=>`<div class="card"><h2>${x}</h2><p>Optional capability</p><button class="btn outline" disabled>Coming soon</button></div>`).join('')}</div>`}if(page==='Updates'){body=head('System Updates','Raspberry Pi OS and Debian package updates. PiNAS application updates are managed separately.')+`<div class="card"><h2>OS Updates</h2><div class="updates-actions"><button class="btn outline" id="check-os-updates" style="display:inline-flex;align-items:center;gap:9px"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.46 6H2.65m9.81 6H2.65m9.81 6H2.65M16.23 7.21l.88 1.08c.36.44.54.66.78.66s.41-.22.77-.67l2.72-3.35"/><rect width="5.15" height="5.15" fill="currentColor" opacity=".2" rx="1.5" transform="matrix(0 -1 -1 0 21.38 18.04)"/><rect width="5.15" height="5.15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" rx="1.5" transform="matrix(0 -1 -1 0 21.38 18.04)"/></g></svg><span>Check for updates</span></button><button class="btn outline" id="install-os-updates" style="display:inline-flex;align-items:center;gap:9px"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.65 6H2.61m11.04 6H2.61m11.04 6H2.61M17.13 6.1l.62.77c.36.44.54.66.78.66s.42-.22.77-.66l2.18-2.7m-4.35 7.93l.62.77c.36.44.54.66.78.66s.42-.22.77-.66l2.18-2.7m-4.35 7.93l.62.77c.36.44.54.66.78.66s.42-.22.77-.66l2.18-2.7"/></svg><span>Install updates</span></button></div><div class="updates-status-row"><div id="updates-message" role="status">Loading available updates…</div><span id="updates-spinner" class="updates-spinner" role="img" aria-label="Update operation in progress" hidden></span></div><div id="updates-list"></div><details class="updates-log"><summary>CLI output</summary><pre id="updates-output" class="small"></pre></details><p class="hint">Checking refreshes APT metadata without installing packages. Installation uses a standard APT upgrade without removing packages. Some updates may require a reboot.</p></div><div class="card" style="margin-top:16px"><h2>Automatic updates</h2><button class="btn outline save-schedule-button" id="save-updates-schedule"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g fill="none"><path fill="currentColor" d="M4.71 20.95c-.93 0-1.4 0-1.69-.28l-.01-.02c-.29-.29-.29-.75-.29-1.69V4.9c0-.94 0-1.4.3-1.7c.29-.3.77-.3 1.72-.3c.77 0 1.15 0 1.42.22c.28.22.36.59.54 1.33l.23.98c.17.74.26 1.11.53 1.33s.65.21 1.41.21h2.45c.84 0 1.26 0 1.54-.25c.28-.24.34-.66.44-1.5l.3-2.4l4.05 2.82l2.95 2.6c.33.29.5.44.59.63c.09.2.09.42.09.87V19c0 .89 0 1.33-.26 1.62l-.07.06c-.29.26-.73.26-1.61.26c-.78 0-1.17 0-1.44-.22l-.07-.05c-.25-.24-.3-.63-.42-1.4l-.5-3.55c-.11-.77-.16-1.15-.42-1.4c-.26-.23-.65-.26-1.43-.31l-3.06-.2l-3.06.2c-.79.05-1.18.08-1.45.33c-.26.25-.3.64-.4 1.43l-.4 3.42c-.1.83-.15 1.24-.43 1.5h-.01c-.28.25-.7.25-1.54.25" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.77 21.38c-2.83 0-4.24 0-5.12-.88s-.88-2.3-.88-5.12V8.6c0-2.83 0-4.24.88-5.12s2.3-.88 5.12-.88h3.58c1.05 0 1.58 0 2.07.18s.9.5 1.72 1.17l1.72 1.4l1.1.88c1.11.89 1.67 1.33 1.97 1.95s.3 1.33.3 2.75v4.45c0 2.83 0 4.24-.88 5.12s-2.3.88-5.12.88z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6.64 2.82v.65c0 1.55 0 2.32.4 2.86a2 2 0 0 0 .4.39c.53.4 1.3.4 2.84.4c1.55 0 2.32 0 2.86-.4a2 2 0 0 0 .39-.4c.4-.53.4-1.3.4-2.85v-.65m3.43 18.44v-3.29c0-1.89 0-2.83-.58-3.41c-.59-.59-1.53-.59-3.42-.59h-2.72c-1.89 0-2.83 0-3.42.59c-.58.58-.58 1.52-.58 3.41v3.29"/></g></svg><span>Save schedule</span></button><p id="updates-schedule-message" class="small" role="status"></p><p class="small">Choose how often PiNAS checks for and installs all available OS package updates.</p><fieldset class="updates-schedule-options"><legend>Pick your schedule</legend><label><input type="radio" name="updates-schedule" value="off" checked><span>Off — Manual updates only</span></label><label><input type="radio" name="updates-schedule" value="daily"><span>Daily</span></label><label><input type="radio" name="updates-schedule" value="weekly"><span>Weekly</span></label><label><input type="radio" name="updates-schedule" value="monthly"><span>Monthly</span></label></fieldset><p id="updates-schedule-description" class="small" aria-live="polite"></p><p class="hint">Times use the Raspberry Pi's local timezone. Automatic updates do not reboot the NAS. A scheduled update may temporarily restart services.</p></div>`}shell(body);if(page==='Updates'){const scheduleRadios=[...document.querySelectorAll('input[name="updates-schedule"]')],desc=document.getElementById('updates-schedule-description');const selectedSchedule=()=>scheduleRadios.find(r=>r.checked)?.value||'off';const descriptions={off:'Automatic updates are disabled.',daily:'Updates will be checked and installed at 01:00 every day.',weekly:'Updates will be checked and installed every Friday at 01:00.',monthly:'Updates will be checked and installed on the 28th of every month at 01:00.'};const updateScheduleDescription=()=>{desc.textContent=descriptions[selectedSchedule()]};scheduleRadios.forEach(r=>r.addEventListener('change',updateScheduleDescription));updateScheduleDescription();document.getElementById('save-updates-schedule').onclick=async()=>{const b=document.getElementById('save-updates-schedule'),m=document.getElementById('updates-schedule-message');b.disabled=true;m.textContent='Saving schedule…';try{await post('/api/updates',{action:'schedule',schedule:selectedSchedule()});m.textContent='Schedule saved.';await loadUpdates()}catch(e){m.textContent=e.message}finally{b.disabled=false}};document.getElementById('install-os-updates').onclick=async()=>{const pw=await updatePasswordDialog();if(pw===null)return;document.getElementById('updates-spinner').hidden=false;document.getElementById('updates-message').textContent='Starting update installation…';try{await post('/api/updates',{action:'upgrade',admin_password:pw});await loadUpdates()}catch(e){document.getElementById('updates-message').textContent=e.message}};document.getElementById('check-os-updates').onclick=async()=>{const b=document.getElementById('check-os-updates');b.disabled=true;document.getElementById('updates-spinner').hidden=false;document.getElementById('updates-message').textContent='Checking for updates…';try{await post('/api/updates',{action:'refresh'});await loadUpdates()}catch(e){document.getElementById('updates-message').textContent=e.message}finally{await loadUpdates()}};loadUpdates()}if(page==='Overview'){document.querySelectorAll('[data-jump]').forEach(el=>{if(!navItems().includes(el.dataset.jump)){el.classList.remove('clickable');el.removeAttribute('role');el.removeAttribute('tabindex');el.removeAttribute('data-jump')}})}if(page==='Users'){document.getElementById('add-nas-user')?.addEventListener('click',openNasUserWizard);document.getElementById('add-admin-user')?.addEventListener('click',()=>openAccountWizard('admin'));document.querySelectorAll('[data-edit-nas]').forEach(b=>b.onclick=()=>openAccountWizard('nas',(info.nas_user_list||[]).find(u=>u.name===b.dataset.editNas)));document.querySelectorAll('[data-edit-admin]').forEach(b=>b.onclick=()=>openAccountWizard('admin',(info.admin_user_list||[]).find(u=>u.name===b.dataset.editAdmin)))}if(page==='Shares'){document.getElementById('create-nas-share')?.addEventListener('click',openNasShareWizard);document.querySelectorAll('[data-delete-share]').forEach(b=>b.addEventListener('click',()=>removeNasShare(b.dataset.deleteShare)))}if(page==='RAID'){document.getElementById('raid-create')?.addEventListener('click',openRaidWizard)}if(page==='Storage'){document.getElementById('check-smart-health')?.addEventListener('click',checkSmartHealth);document.querySelectorAll('[data-disk]').forEach(b=>b.onclick=()=>openDiskWizard(Number(b.dataset.disk)))}if(page==='Overview'){document.getElementById('refresh-service-health')?.addEventListener('click',refreshServiceHealth);refreshServiceHealth();document.querySelectorAll('[data-jump]').forEach(el=>{el.onclick=()=>{page=navItems().includes(el.dataset.jump)?el.dataset.jump:'Storage';render()};el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click()}}});drawCPU()}document.querySelectorAll('[data-next]').forEach(b=>b.onclick=()=>{page=b.dataset.next;render()})};
+function render(){if(!navItems().includes(page))page='Overview';let body='';if(page==='Overview'){let used=info.memory_used||0,total=info.memory_total||1,pct=Math.min(100,Math.round(100*used/total)),temp=info.temperature,disksCount=disks().filter(d=>d.type==='disk').length;body=head('Overview','Your Raspberry Pi NAS at a glance.')+`<div class="grid overview">`+setupNotice()+`<div class="card stat clickable" role="button" tabindex="0" data-jump="Storage"><div class="label">Attached disks</div><div class="big" id="count-disks">${disksCount}</div><span class="small">Physical drives</span></div><div class="card stat clickable" role="button" tabindex="0" data-jump="Shares"><div class="label">Network shares</div><div class="big" id="count-shares">${info.shares?.length||0}</div><span class="small">Samba shares</span></div><div class="card stat clickable" role="button" tabindex="0" data-jump="Users"><div class="label">NAS users</div><div class="big" id="count-users">${info.nas_users??'—'}</div><span class="small">Samba accounts</span></div><div class="card wide"><div class="chart-title"><h2>CPU Activity</h2><span class="pill">Last ${cfg.cpu_history||10} minutes</span></div><div id="cpu-chart" class="cpu-chart" role="img" aria-label="CPU activity history"></div><div class="chart-footer"><div><div class="label">Current CPU</div><div class="big" id="cpu-current">—</div></div><div><div class="label">Peak in view</div><strong id="cpu-peak">—</strong></div></div></div><div class="card metric"><h2>Memory</h2><div id="memory-ring">${ring(pct,pct+'%','Used','var(--accent)')}<p class="small">${size(used)} / ${size(total)}</p></div></div><div class="card metric"><h2>CPU Temperature</h2><div id="temp-ring">${ring(temp==null?0:Math.min(100,temp),temp==null?'—':temp+'°C','Temperature',temp!=null&&temp>=75?'#c53540':temp!=null&&temp>=65?'#c28a22':'#299768')}<p class="small">${temp==null?'Unavailable':temp>=75?'High temperature':temp>=65?'Elevated temperature':'Normal temperature'}</p></div></div><div class="card metric"><h2>Raspberry Pi</h2><strong>${esc(info.model)}</strong><p class="small">${esc(info.hostname)}</p><span class="pill ${info.throttle==='throttled=0x0'?'good':''}">${esc(info.throttle||'Throttle status unavailable')}</span></div><div class="card wide"><h2>System health</h2><div class="health-grid"><div><span class="label">Uptime</span><strong id="health-uptime">${uptimeText(info.uptime_seconds)}</strong></div><div><span class="label">Operating system</span><strong id="health-os">${esc(info.os_name||'Unavailable')}</strong></div><div><span class="label">Kernel</span><strong id="health-kernel">${esc(info.kernel||'Unavailable')}</strong></div><div><span class="label">Load average (1 / 5 / 15 min)</span><strong id="health-load">${esc((info.load||[]).map(n=>Number(n).toFixed(2)).join(' / ')||'Unavailable')}</strong></div></div><p class="small">System information is read directly from Linux and refreshed with the Overview page. No additional monitoring service is required.</p></div><div class="card wide"><div class="chart-title"><h2>NAS service health</h2><button class="btn outline" id="refresh-service-health">Refresh</button></div><p class="small">Read-only service checks when Overview is opened or Refresh is pressed.</p><div id="service-health-warnings" role="status"></div><div id="service-health-results" role="status">Checking services…</div></div><div class="card wide"><h2>Storage at a glance</h2>${diskSummary()}</div></div>`}else if(page==='Storage'){body=head('Storage','Your attached data drives. System storage and swap devices are excluded.')+`<div class="card"><h2>Detected drives</h2>${disks().map((d,i)=>{const vs=d.volumes||[],v=vs.find(x=>x.mounts?.length)||vs[0],fs=[...new Set(vs.map(x=>x.fs).filter(Boolean))],mounts=vs.flatMap(x=>x.mounts||[]),persistent=vs.some(x=>x.persistent);return `<div class="storage-disk-entry"><div class="disk-properties"><div><span>Name:</span><strong>${esc(d.model||d.name||'Attached drive')}</strong></div><div><span>Capacity:</span><strong>${size(d.size)}</strong></div><div><span>File System:</span><strong>${esc(fs.join(', ')||'None detected')}</strong></div><div><span>Mount Status:</span><strong>${mounts.length?'Mounted':'Not mounted'}</strong></div><div><span>Mount Point:</span><strong>${esc(mounts.join(', ')||'—')}</strong></div><div><span>Persistent Mount:</span><strong>${persistent?'Yes':'No'}</strong></div></div><button class="btn outline storage-action" data-disk="${i}">Manage</button></div>`}).join('')||'<p>No attached data drives detected. System disks and zram swap are intentionally hidden.</p>'}</div><div class="card" style="margin-top:16px"><h2>Disk health</h2><p class="small">Read-only SMART health and temperature checks, on demand. Some USB adapters do not expose SMART data.</p><button class="btn outline" id="check-smart-health">Check disk health</button><div id="smart-health-results" style="margin-top:12px" role="status"></div></div><p class="hint">Existing filesystems can be adopted without formatting. Wiping and formatting remain unavailable until the privileged destructive-operation safeguards are implemented and tested.</p>`}else if(page==='RAID'){const arrays=info.raid||[];body=head('Software RAID','Discover and monitor Linux mdadm arrays. RAID creation remains protected.')+`<div class="card"><h2>Existing RAID arrays</h2>${arrays.map(r=>{const degraded=Number(r.degraded||0),healthy=r.state==='clean'||r.state==='active',status=degraded?'Degraded':healthy?'Healthy':'Check status';return `<div class="raid-array-entry"><div class="line"><div><strong>${esc(r.name)} · ${esc(r.level)}</strong><span class="small">${esc(r.state||'Unknown')} · ${r.raid_disks??'—'} expected members · ${r.members?.length??0} detected</span></div><span class="pill ${!degraded&&healthy?'good':''}">${status}</span></div><div class="disk-properties"><div><span>Sync activity:</span><strong>${esc(r.sync||'Unknown')}</strong></div><div><span>Degraded members:</span><strong>${degraded}</strong></div><div><span>Metadata:</span><strong>${esc(r.metadata||'—')}</strong></div></div>${r.progress!=null&&r.sync!=='idle'?`<div class="small">${esc(r.sync)}: ${r.progress}%</div><div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,r.progress))}%"></div></div>`:''}${(r.members||[]).map(m=>`<div class="line"><span>${esc(m.device)} · Slot ${esc(m.slot||'—')}</span><span class="small">${esc(m.state)}</span></div>`).join('')||'<p class="hint">No members reported by the kernel.</p>'}</div>`}).join('')||'<p>No mdadm arrays detected. You can review the RAID planner without changing any disks.</p>'}<button class="btn outline" id="raid-create">Plan a RAID array</button></div><p class="hint">This release is monitoring-only. RAID creation, deletion and member replacement remain disabled until device safeguards and recovery workflows have been tested. RAID is not a backup.</p>`}else if(page==='Shares'){body=head('Network shares','Manage shared folders and their access permissions.')+`<div class="card"><h2>Configured network shares</h2><div class="share-top-actions"><button class="btn outline icon-btn share-icon-btn" id="create-nas-share" title="Create share" aria-label="Create share">${CREATE_SHARE_ICON}</button></div>${(info.shares||[]).map(s=>{const d=(info.share_details||[]).find(x=>x.name===s);const perms=d?Object.entries(d.access||{}).map(([u,p])=>esc(u)+' | '+(p==='rw'?'Read & Write':'Read Only')).join(', '):'Unavailable';return `<div class="line share-entry"><div class="share-meta"><div><strong>Name:</strong> <span>${esc(s)}</span></div><div><strong>Location:</strong> <span>${esc(d?.folder||'Unavailable')}</span></div><div><strong>Permissions:</strong> <span>${perms}</span></div><div><strong>Type:</strong> <span>SMB</span></div></div><div class="share-actions"><button class="btn outline icon-btn share-icon-btn" data-delete-share="${esc(s)}" title="${d?'Remove share':'External share — not managed by PiNAS'}" aria-label="Remove share ${esc(s)}" ${d?'':'disabled'}>${DELETE_SHARE_ICON}</button><button class="btn outline icon-btn share-icon-btn" data-edit-share="${esc(s)}" title="${d?'Edit share':'External share — not managed by PiNAS'}" aria-label="Edit share ${esc(s)}" ${d?'':'disabled'}>${EDIT_SHARE_ICON}</button></div></div>`}).join('')||'<p>No network shares detected.</p>'}</div><p class="hint">Removing a share stops network access but preserves the folder and its contents. Editing a share changes its network name or access permissions without moving its folder.</p>`} else if(page==='Users'){body=head('User Management','Manage PiNAS administrators and NAS users.')+`<div class="user-top-actions"><button class="btn outline add-user-button" id="add-nas-user">${ADD_USER_ICON}<span>Add New User</span></button><button class="btn outline add-user-button" id="add-admin-user">${ADD_USER_ICON}<span>Add Admin User</span></button></div><div class="user-management-cards"><div class="card"><h2>Administrators</h2><p>Accounts authorised to manage PiNAS settings and storage.</p>${(info.admin_user_list||[]).map(u=>`<div class="line"><div><strong>${esc(u.display_name||u.name)}</strong><span class="small">@${esc(u.name)}</span></div><button class="btn outline edit-user-button" data-edit-admin="${esc(u.name)}">${EDIT_USER_ICON}<span>Edit User</span></button></div>`).join('')||'<p>No administrator accounts listed.</p>'}</div><div class="card"><h2>Users</h2><p>NAS accounts for accessing shared folders. Share permissions are managed from the Shares page.</p>${(info.nas_user_list||[]).map(u=>`<div class="line"><div><strong>${esc(u.display_name||u.name)}</strong><span class="small">@${esc(u.name)}</span></div><button class="btn outline edit-user-button" data-edit-nas="${esc(u.name)}">${EDIT_USER_ICON}<span>Edit User</span></button></div>`).join('')||'<p>No NAS users configured yet.</p>'}</div></div>`}else if(page==='Applications'){body=head('Applications','Start simple, then expand your NAS as needed.')+`<div class="grid">${['Scheduled backups','NFS sharing','MiniDLNA',...(info.capabilities?.curated_apps?['Curated apps (future release)']:[])].map(x=>`<div class="card"><h2>${x}</h2><p>Optional capability</p><button class="btn outline" disabled>Coming soon</button></div>`).join('')}</div>`}if(page==='Updates'){body=head('System Updates','Raspberry Pi OS and Debian package updates. PiNAS application updates are managed separately.')+`<div class="card"><h2>OS Updates</h2><div class="updates-actions"><button class="btn outline" id="check-os-updates" style="display:inline-flex;align-items:center;gap:9px"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.46 6H2.65m9.81 6H2.65m9.81 6H2.65M16.23 7.21l.88 1.08c.36.44.54.66.78.66s.41-.22.77-.67l2.72-3.35"/><rect width="5.15" height="5.15" fill="currentColor" opacity=".2" rx="1.5" transform="matrix(0 -1 -1 0 21.38 18.04)"/><rect width="5.15" height="5.15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" rx="1.5" transform="matrix(0 -1 -1 0 21.38 18.04)"/></g></svg><span>Check for updates</span></button><button class="btn outline" id="install-os-updates" style="display:inline-flex;align-items:center;gap:9px"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.65 6H2.61m11.04 6H2.61m11.04 6H2.61M17.13 6.1l.62.77c.36.44.54.66.78.66s.42-.22.77-.66l2.18-2.7m-4.35 7.93l.62.77c.36.44.54.66.78.66s.42-.22.77-.66l2.18-2.7m-4.35 7.93l.62.77c.36.44.54.66.78.66s.42-.22.77-.66l2.18-2.7"/></svg><span>Install updates</span></button></div><div class="updates-status-row"><div id="updates-message" role="status">Loading available updates…</div><span id="updates-spinner" class="updates-spinner" role="img" aria-label="Update operation in progress" hidden></span></div><div id="updates-list"></div><details class="updates-log"><summary>CLI output</summary><pre id="updates-output" class="small"></pre></details><p class="hint">Checking refreshes APT metadata without installing packages. Installation uses a standard APT upgrade without removing packages. Some updates may require a reboot.</p></div><div class="card" style="margin-top:16px"><h2>Automatic updates</h2><button class="btn outline save-schedule-button" id="save-updates-schedule"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g fill="none"><path fill="currentColor" d="M4.71 20.95c-.93 0-1.4 0-1.69-.28l-.01-.02c-.29-.29-.29-.75-.29-1.69V4.9c0-.94 0-1.4.3-1.7c.29-.3.77-.3 1.72-.3c.77 0 1.15 0 1.42.22c.28.22.36.59.54 1.33l.23.98c.17.74.26 1.11.53 1.33s.65.21 1.41.21h2.45c.84 0 1.26 0 1.54-.25c.28-.24.34-.66.44-1.5l.3-2.4l4.05 2.82l2.95 2.6c.33.29.5.44.59.63c.09.2.09.42.09.87V19c0 .89 0 1.33-.26 1.62l-.07.06c-.29.26-.73.26-1.61.26c-.78 0-1.17 0-1.44-.22l-.07-.05c-.25-.24-.3-.63-.42-1.4l-.5-3.55c-.11-.77-.16-1.15-.42-1.4c-.26-.23-.65-.26-1.43-.31l-3.06-.2l-3.06.2c-.79.05-1.18.08-1.45.33c-.26.25-.3.64-.4 1.43l-.4 3.42c-.1.83-.15 1.24-.43 1.5h-.01c-.28.25-.7.25-1.54.25" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.77 21.38c-2.83 0-4.24 0-5.12-.88s-.88-2.3-.88-5.12V8.6c0-2.83 0-4.24.88-5.12s2.3-.88 5.12-.88h3.58c1.05 0 1.58 0 2.07.18s.9.5 1.72 1.17l1.72 1.4l1.1.88c1.11.89 1.67 1.33 1.97 1.95s.3 1.33.3 2.75v4.45c0 2.83 0 4.24-.88 5.12s-2.3.88-5.12.88z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6.64 2.82v.65c0 1.55 0 2.32.4 2.86a2 2 0 0 0 .4.39c.53.4 1.3.4 2.84.4c1.55 0 2.32 0 2.86-.4a2 2 0 0 0 .39-.4c.4-.53.4-1.3.4-2.85v-.65m3.43 18.44v-3.29c0-1.89 0-2.83-.58-3.41c-.59-.59-1.53-.59-3.42-.59h-2.72c-1.89 0-2.83 0-3.42.59c-.58.58-.58 1.52-.58 3.41v3.29"/></g></svg><span>Save schedule</span></button><p id="updates-schedule-message" class="small" role="status"></p><p class="small">Choose how often PiNAS checks for and installs all available OS package updates.</p><fieldset class="updates-schedule-options"><legend>Pick your schedule</legend><label><input type="radio" name="updates-schedule" value="off" checked><span>Off — Manual updates only</span></label><label><input type="radio" name="updates-schedule" value="daily"><span>Daily</span></label><label><input type="radio" name="updates-schedule" value="weekly"><span>Weekly</span></label><label><input type="radio" name="updates-schedule" value="monthly"><span>Monthly</span></label></fieldset><p id="updates-schedule-description" class="small" aria-live="polite"></p><p class="hint">Times use the Raspberry Pi's local timezone. Automatic updates do not reboot the NAS. A scheduled update may temporarily restart services.</p></div>`}shell(body);if(page==='Updates'){const scheduleRadios=[...document.querySelectorAll('input[name="updates-schedule"]')],desc=document.getElementById('updates-schedule-description');const selectedSchedule=()=>scheduleRadios.find(r=>r.checked)?.value||'off';const descriptions={off:'Automatic updates are disabled.',daily:'Updates will be checked and installed at 01:00 every day.',weekly:'Updates will be checked and installed every Friday at 01:00.',monthly:'Updates will be checked and installed on the 28th of every month at 01:00.'};const updateScheduleDescription=()=>{desc.textContent=descriptions[selectedSchedule()]};scheduleRadios.forEach(r=>r.addEventListener('change',updateScheduleDescription));updateScheduleDescription();document.getElementById('save-updates-schedule').onclick=async()=>{const b=document.getElementById('save-updates-schedule'),m=document.getElementById('updates-schedule-message');b.disabled=true;m.textContent='Saving schedule…';try{await post('/api/updates',{action:'schedule',schedule:selectedSchedule()});m.textContent='Schedule saved.';await loadUpdates()}catch(e){m.textContent=e.message}finally{b.disabled=false}};document.getElementById('install-os-updates').onclick=async()=>{const pw=await updatePasswordDialog();if(pw===null)return;document.getElementById('updates-spinner').hidden=false;document.getElementById('updates-message').textContent='Starting update installation…';try{await post('/api/updates',{action:'upgrade',admin_password:pw});await loadUpdates()}catch(e){document.getElementById('updates-message').textContent=e.message}};document.getElementById('check-os-updates').onclick=async()=>{const b=document.getElementById('check-os-updates');b.disabled=true;document.getElementById('updates-spinner').hidden=false;document.getElementById('updates-message').textContent='Checking for updates…';try{await post('/api/updates',{action:'refresh'});await loadUpdates()}catch(e){document.getElementById('updates-message').textContent=e.message}finally{await loadUpdates()}};loadUpdates()}if(page==='Overview'){document.querySelectorAll('[data-jump]').forEach(el=>{if(!navItems().includes(el.dataset.jump)){el.classList.remove('clickable');el.removeAttribute('role');el.removeAttribute('tabindex');el.removeAttribute('data-jump')}})}if(page==='Users'){document.getElementById('add-nas-user')?.addEventListener('click',openNasUserWizard);document.getElementById('add-admin-user')?.addEventListener('click',()=>openAccountWizard('admin'));document.querySelectorAll('[data-edit-nas]').forEach(b=>b.onclick=()=>openAccountWizard('nas',(info.nas_user_list||[]).find(u=>u.name===b.dataset.editNas)));document.querySelectorAll('[data-edit-admin]').forEach(b=>b.onclick=()=>openAccountWizard('admin',(info.admin_user_list||[]).find(u=>u.name===b.dataset.editAdmin)))}if(page==='Shares'){document.getElementById('create-nas-share')?.addEventListener('click',openNasShareWizard);document.querySelectorAll('[data-delete-share]').forEach(b=>b.addEventListener('click',()=>removeNasShare(b.dataset.deleteShare)));document.querySelectorAll('[data-edit-share]').forEach(b=>b.addEventListener('click',()=>editNasShare(b.dataset.editShare)))}if(page==='RAID'){document.getElementById('raid-create')?.addEventListener('click',openRaidWizard)}if(page==='Storage'){document.getElementById('check-smart-health')?.addEventListener('click',checkSmartHealth);document.querySelectorAll('[data-disk]').forEach(b=>b.onclick=()=>openDiskWizard(Number(b.dataset.disk)))}if(page==='Overview'){document.getElementById('refresh-service-health')?.addEventListener('click',refreshServiceHealth);refreshServiceHealth();document.querySelectorAll('[data-jump]').forEach(el=>{el.onclick=()=>{page=navItems().includes(el.dataset.jump)?el.dataset.jump:'Storage';render()};el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click()}}});drawCPU()}document.querySelectorAll('[data-next]').forEach(b=>b.onclick=()=>{page=b.dataset.next;render()})};
 
 function updatePasswordDialog(){return new Promise(resolve=>{const overlay=document.createElement('div');overlay.className='modal-overlay';overlay.innerHTML='<div class="settings-modal card" role="dialog" aria-modal="true" aria-label="Install updates"><h2>Install system updates</h2><p>APT will upgrade available packages without removing packages. Back up important data first. A reboot may be required.</p><label class="field">Current administrator password<input type="password" autocomplete="current-password" id="apt-password"></label><div class="modal-actions"><button class="btn outline" id="apt-cancel">Cancel</button><button class="btn" id="apt-confirm">Install updates</button></div></div>';document.body.appendChild(overlay);const close=v=>{overlay.remove();resolve(v)};overlay.querySelector('#apt-cancel').onclick=()=>close(null);overlay.querySelector('#apt-confirm').onclick=()=>close(overlay.querySelector('#apt-password').value);overlay.onkeydown=e=>{if(e.key==='Escape')close(null);if(e.key==='Enter')close(overlay.querySelector('#apt-password').value)};overlay.querySelector('#apt-password').focus()})}
 async function loadUpdates(){
@@ -589,7 +596,16 @@ function openAccountWizard(kind,existing=null){
  overlay.querySelector('#account-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),msg=overlay.querySelector('#account-message'),btn=overlay.querySelector('#account-submit');if(f.get('password')!==f.get('confirm')){msg.textContent='Passwords do not match.';return}btn.disabled=true;try{const payload={kind,username:editing?existing.name:f.get('username'),display_name:f.get('display_name'),password:f.get('password')};if(admin&&!editing)payload.admin_password=f.get('admin_password');await post(editing?'/api/edit-user':admin?'/api/admin-users':'/api/nas-users',payload);const j=await(await fetch('/api/state',{cache:'no-store'})).json();info=j.hardware||info;close();render()}catch(err){msg.textContent=err.message;btn.disabled=false}};
  overlay.querySelector('[name=display_name]').focus();
 }
-async function removeNasShare(name){
+async function editNasShare(name){
+ const d=(info.share_details||[]).find(x=>x.name===name);if(!d)return;
+ const overlay=document.createElement('div');overlay.className='modal-overlay';
+ const users=info.nas_user_list||[];
+ overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Edit share" tabindex="-1"><div class="modal-heading"><h2>Edit network share</h2><button class="icon-btn" id="es-close" aria-label="Close">${CANCEL_ICON}</button></div><div class="settings-scroll"><p class="small">Location: ${esc(d.folder||'Unavailable')}. The folder and files will not be moved or renamed.</p><form id="es-form"><label class="field">Share name<input name="new_name" maxlength="32" required pattern="[A-Za-z][A-Za-z0-9 _-]{0,31}" value="${esc(name)}"></label><h3>User permissions</h3>${users.map(u=>`<label class="field">${esc(u.name)}<select data-share-user="${esc(u.name)}"><option value="none" ${!d.access?.[u.name]?'selected':''}>No Access</option><option value="ro" ${d.access?.[u.name]==='ro'?'selected':''}>Read Only</option><option value="rw" ${d.access?.[u.name]==='rw'?'selected':''}>Read & Write</option></select></label>`).join('')}<label class="field">Administrator password<input name="admin_password" type="password" required autocomplete="current-password"></label><p class="hint">Changes to permissions on existing files are not recursive. Existing file permissions may still restrict access.</p><p id="es-message" role="status"></p><div class="modal-actions"><button class="btn outline" type="button" id="es-cancel">Cancel</button><button class="btn" type="submit" id="es-save">Save changes</button></div></form></div></section>`;
+ document.body.appendChild(overlay);const close=()=>overlay.remove();overlay.querySelector('#es-close').onclick=close;overlay.querySelector('#es-cancel').onclick=close;
+ overlay.querySelector('#es-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,access={};overlay.querySelectorAll('[data-share-user]').forEach(el=>{if(el.value!=='none')access[el.dataset.shareUser]=el.value});const msg=overlay.querySelector('#es-message'),btn=overlay.querySelector('#es-save');if(!Object.keys(access).length){msg.textContent='Assign access to at least one user.';return}btn.disabled=true;msg.textContent='Saving changes…';try{await post('/api/edit-share',{name,new_name:new FormData(form).get('new_name'),access,admin_password:new FormData(form).get('admin_password')});const r=await fetch('/api/state',{cache:'no-store'}),j=await r.json();if(!r.ok)throw Error('Unable to refresh shares');info=j.hardware||info;close();render()}catch(error){msg.textContent=error.message;btn.disabled=false}};
+ overlay.querySelector('[name=new_name]').focus();
+}
+function removeNasShare(name){
  const overlay=document.createElement('div');overlay.className='modal-overlay';
  overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Remove share" tabindex="-1"><div class="modal-heading"><h2>Remove network share</h2><button class="icon-btn" id="ds-close" aria-label="Close">${CANCEL_ICON}</button></div><p>Remove the Samba share <strong>${esc(name)}</strong>?</p><p class="hint">The network share will be removed, but its folder and files will be preserved on disk.</p><form id="ds-form"><label class="field">Administrator password<input type="password" name="admin_password" required autocomplete="current-password"></label><p id="ds-message" role="status"></p><div class="modal-actions"><button type="button" class="btn outline" id="ds-cancel">Cancel</button><button type="submit" class="btn danger" id="ds-submit">Remove share</button></div></form></section>`;
  document.body.appendChild(overlay);const close=()=>overlay.remove();
@@ -669,8 +685,9 @@ const actionIcon=(name)=>`<svg viewBox="0 0 24 24" width="24" height="24" fill="
 const PINAS_BRAND_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="27" height="27" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><g fill="none"><rect width="6.11" height="20.43" x="1.78" y="9" fill="currentColor" opacity=".2" rx="2" transform="rotate(-90 1.78 9)"/><rect width="6.11" height="20.43" x="1.78" y="21.23" fill="currentColor" opacity=".2" rx="2" transform="rotate(-90 1.78 21.23)"/><rect width="6.11" height="20.43" x="1.78" y="9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" rx="2" transform="rotate(-90 1.78 9)"/><rect width="6.11" height="20.43" x="1.78" y="15.11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" rx="2" transform="rotate(-90 1.78 15.11)"/><rect width="6.11" height="20.43" x="1.78" y="21.23" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" rx="2" transform="rotate(-90 1.78 21.23)"/><path fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.83 5.94a.41.41 0 1 1-.83 0a.41.41 0 0 1 .83 0m0 6.12a.41.41 0 1 1-.83 0a.41.41 0 0 1 .83 0m0 6.11a.41.41 0 1 1-.83 0a.41.41 0 0 1 .83 0m4.1-12.23a.41.41 0 1 1-.82 0a.41.41 0 0 1 .82 0m0 6.12a.41.41 0 1 1-.82 0a.41.41 0 0 1 .82 0m0 6.11a.41.41 0 1 1-.82 0a.41.41 0 0 1 .82 0"/></g></svg>`;
 const LOGOFF_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><g fill="none"><path fill="currentColor" d="M15.47 7.99a5.4 5.4 0 1 1-10.79 0a5.4 5.4 0 0 1 10.8 0" opacity=".2" /><path fill="currentColor" d="M18.38 21.84H1.78a8.4 8.4 0 0 1 8.3-8.46c4.58 0 8.3 3.79 8.3 8.46" opacity=".2" /><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.47 7.99a5.4 5.4 0 0 1-5.4 5.4a5.4 5.4 0 1 1 5.4-5.4" /><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M1.78 21.68a8.3 8.3 0 0 1 11.11-7.8m3.49 1.58h5.33m-.15 5.14h-5.33m4.62-7.1l.55.55c.67.66 1 1 1 1.41c0 .42-.33.75-1 1.42l-.55.55m-3.75 1.19l-.55.55c-.67.67-1 1-1 1.42s.33.75 1 1.41l.55.56" /></g></svg>`;
 const CANCEL_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><path fill="currentColor" fill-rule="evenodd" d="M7.345 4.017a42.3 42.3 0 0 1 9.31 0c1.713.192 3.095 1.541 3.296 3.26a40.7 40.7 0 0 1 0 9.446c-.201 1.719-1.583 3.068-3.296 3.26a42.3 42.3 0 0 1-9.31 0c-1.713-.192-3.095-1.541-3.296-3.26a40.7 40.7 0 0 1 0-9.445a3.734 3.734 0 0 1 3.295-3.26M8.47 8.47a.75.75 0 0 1 1.06 0L12 10.94l2.47-2.47a.75.75 0 1 1 1.06 1.06L13.06 12l2.47 2.47a.75.75 0 0 1-1.06 1.06L12 13.06l-2.47 2.47a.75.75 0 1 1-1.06-1.06L10.94 12L8.47 9.53a.75.75 0 0 1 0-1.06" clip-rule="evenodd"/></svg>`;
-const CREATE_SHARE_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><g fill="none"><path fill="currentColor" d="M22.2 14.17c0 2.83 0 4.25-.87 5.12c-.88.88-2.3.88-5.12.88H7.79c-2.82 0-4.24 0-5.12-.88c-.88-.87-.88-2.29-.88-5.12V7.51c0-.63 0-.95.05-1.22a3 3 0 0 1 2.42-2.41c.26-.05.58-.05 1.22-.05h1.04c1.1 0 1.64 0 2.14.18c.5.19.92.54 1.75 1.25l.38.32c.83.7 1.25 1.06 1.75 1.25s1.04.18 2.14.18h1.53c2.82 0 4.24 0 5.12.88s.88 2.3.88 5.12z" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22.2 14.17c0 2.83 0 4.25-.87 5.12c-.88.88-2.3.88-5.12.88H7.79c-2.82 0-4.24 0-5.12-.88c-.88-.87-.88-2.29-.88-5.12V6.51a2.56 2.56 0 0 1 2.56-2.55h2.18c1.03 0 1.54 0 2.01.16l.25.1c.46.2.83.55 1.58 1.25s1.13 1.05 1.59 1.25l.24.1c.48.16 1 .16 2.02.16h1.99c2.82 0 4.24 0 5.12.88c.88.87.88 2.29.88 5.12zm-13.5-.68h6.6"/></g></svg>`;
-const DELETE_SHARE_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><g fill="none"><path fill="currentColor" d="M22.24 14.2c0 2.83 0 4.24-.88 5.12s-2.3.88-5.12.88H7.76c-2.83 0-4.24 0-5.12-.88s-.88-2.3-.88-5.12V7.5c0-.65 0-.98.05-1.25a3 3 0 0 1 2.4-2.4c.27-.05.6-.05 1.25-.05H6.5c1.1 0 1.64 0 2.14.18c.5.19.92.54 1.75 1.25l.39.33c.83.71 1.25 1.06 1.75 1.25s1.05.18 2.14.18h1.56c2.83 0 4.24 0 5.12.88s.88 2.3.88 5.12z" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22.24 14.2c0 2.83 0 4.24-.88 5.12s-2.3.88-5.12.88H7.76c-2.83 0-4.24 0-5.12-.88s-.88-2.3-.88-5.12V6.5a2.56 2.56 0 0 1 2.56-2.56H6.5c1.04 0 1.55 0 2.03.16l.23.1c.46.2.84.55 1.6 1.25s1.14 1.06 1.6 1.26l.23.1c.47.16 1 .16 2.03.16h2.01c2.83 0 4.24 0 5.12.88s.88 2.3.88 5.12zM8.7 13.58h6.6M12 16.89v-6.6"/></g></svg>`;
+const DELETE_SHARE_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><g fill="none"><path fill="currentColor" d="M22.2 14.17c0 2.83 0 4.25-.87 5.12c-.88.88-2.3.88-5.12.88H7.79c-2.82 0-4.24 0-5.12-.88c-.88-.87-.88-2.29-.88-5.12V7.51c0-.63 0-.95.05-1.22a3 3 0 0 1 2.42-2.41c.26-.05.58-.05 1.22-.05h1.04c1.1 0 1.64 0 2.14.18c.5.19.92.54 1.75 1.25l.38.32c.83.7 1.25 1.06 1.75 1.25s1.04.18 2.14.18h1.53c2.82 0 4.24 0 5.12.88s.88 2.3.88 5.12z" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22.2 14.17c0 2.83 0 4.25-.87 5.12c-.88.88-2.3.88-5.12.88H7.79c-2.82 0-4.24 0-5.12-.88c-.88-.87-.88-2.29-.88-5.12V6.51a2.56 2.56 0 0 1 2.56-2.55h2.18c1.03 0 1.54 0 2.01.16l.25.1c.46.2.83.55 1.58 1.25s1.13 1.05 1.59 1.25l.24.1c.48.16 1 .16 2.02.16h1.99c2.82 0 4.24 0 5.12.88c.88.87.88 2.29.88 5.12zm-13.5-.68h6.6"/></g></svg>`;
+const CREATE_SHARE_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><g fill="none"><path fill="currentColor" d="M22.24 14.2c0 2.83 0 4.24-.88 5.12s-2.3.88-5.12.88H7.76c-2.83 0-4.24 0-5.12-.88s-.88-2.3-.88-5.12V7.5c0-.65 0-.98.05-1.25a3 3 0 0 1 2.4-2.4c.27-.05.6-.05 1.25-.05H6.5c1.1 0 1.64 0 2.14.18c.5.19.92.54 1.75 1.25l.39.33c.83.71 1.25 1.06 1.75 1.25s1.05.18 2.14.18h1.56c2.83 0 4.24 0 5.12.88s.88 2.3.88 5.12z" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22.24 14.2c0 2.83 0 4.24-.88 5.12s-2.3.88-5.12.88H7.76c-2.83 0-4.24 0-5.12-.88s-.88-2.3-.88-5.12V6.5a2.56 2.56 0 0 1 2.56-2.56H6.5c1.04 0 1.55 0 2.03.16l.23.1c.46.2.84.55 1.6 1.25s1.14 1.06 1.6 1.26l.23.1c.47.16 1 .16 2.03.16h2.01c2.83 0 4.24 0 5.12.88s.88 2.3.88 5.12zM8.7 13.58h6.6M12 16.89v-6.6"/></g></svg>`;
+const EDIT_SHARE_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h16M6 16.5l.4-3.3L16.7 2.9a2.2 2.2 0 0 1 3.1 3.1L9.5 16.3 6 16.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const ADD_USER_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><g fill="none"><path fill="currentColor" d="M15.47 7.99a5.4 5.4 0 1 1-10.79 0a5.4 5.4 0 0 1 10.8 0" opacity=".2"/><path fill="currentColor" d="M18.38 21.84H1.78a8.4 8.4 0 0 1 8.3-8.46c4.58 0 8.3 3.79 8.3 8.46" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.47 7.99a5.4 5.4 0 0 1-5.4 5.4a5.4 5.4 0 1 1 5.4-5.4m-.45 10.71h7.16m-3.58 3.58v-7.16"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M1.78 21.68a8.3 8.3 0 0 1 12.32-7.26"/></g></svg>`;
 const EDIT_USER_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"/><g fill="none"><path fill="currentColor" d="M15.47 7.99a5.4 5.4 0 1 1-10.79 0a5.4 5.4 0 0 1 10.8 0" opacity=".2"/><path fill="currentColor" d="M14.09 21.84H1.77a8.4 8.4 0 0 1 8.3-8.46c2.9 0 5.44 1.5 6.93 3.8c-1.59 1.38-3.2 2.89-2.91 4.66" opacity=".2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.47 7.99a5.4 5.4 0 0 1-5.4 5.4a5.4 5.4 0 1 1 5.4-5.4"/><rect width="2.4" height="2.69" fill="currentColor" opacity=".2" rx="1" transform="rotate(-45 31.28 -16)scale(1 -1)"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m20.47 17.45l-1.81-1.81m-3.72 6.65a4 4 0 0 0 1.1-.32c.25-.13.46-.34.87-.74l4.62-4.53c.33-.33.5-.5.57-.68a1 1 0 0 0 0-.77c-.07-.19-.23-.35-.56-.68a3 3 0 0 0-.67-.56a1 1 0 0 0-.77 0c-.19.07-.35.23-.67.56l-4.6 4.58a4 4 0 0 0-.76.87c-.13.25-.2.53-.31 1.09c-.15.67-.23 1-.04 1.2l.01.01c.2.19.53.11 1.2-.03M1.78 21.8a8.3 8.3 0 0 1 12.32-7.25"/></g></svg>`;
 const SETTINGS_ICON=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none" /><g fill="none"><path fill="currentColor" fill-rule="evenodd" d="M1.48 12.67c0 .94 0 1.41.3 1.7c.29.3.76.3 1.7.3h1.45c.27 0 .4 0 .52.03a1 1 0 0 1 .47.27c.09.09.16.2.29.43s.2.35.23.47a1 1 0 0 1 0 .54c-.03.12-.1.24-.23.47l-.67 1.15c-.47.82-.7 1.23-.6 1.63c.11.4.52.63 1.34 1.1l.95.55c.81.47 1.22.7 1.62.6s.64-.51 1.1-1.33l.41-.7c.24-.4.35-.6.53-.73l.16-.1c.2-.09.43-.09.9-.09c.45 0 .69 0 .88.1l.17.09c.17.12.29.32.52.72l.4.7c.48.83.71 1.23 1.11 1.34c.4.1.81-.13 1.63-.6l.95-.55c.82-.47 1.22-.7 1.33-1.1c.1-.4-.13-.81-.6-1.63l-.41-.71c-.28-.5-.42-.74-.43-1q0-.15.04-.3c.07-.24.27-.44.67-.84c.22-.22.33-.33.46-.4l.17-.07c.15-.04.3-.04.62-.04h.82c.95 0 1.42 0 1.71-.3c.3-.29.3-.76.3-1.7v-1.1c0-.94 0-1.41-.3-1.7s-.76-.3-1.7-.3h-.83c-.32 0-.47 0-.62-.04l-.17-.08a2 2 0 0 1-.46-.4c-.4-.4-.6-.6-.67-.84a1 1 0 0 1-.04-.3c0-.26.15-.5.43-.99l.41-.71c.47-.82.7-1.23.6-1.63s-.51-.64-1.33-1.1l-.95-.55c-.82-.48-1.23-.71-1.63-.6s-.63.51-1.1 1.33l-.41.7c-.23.4-.35.6-.52.73l-.17.1c-.2.08-.43.08-.89.08s-.7 0-.89-.09l-.16-.1c-.18-.12-.3-.32-.53-.72l-.4-.7c-.47-.82-.71-1.23-1.11-1.33s-.8.12-1.62.6l-.95.54c-.82.47-1.23.71-1.34 1.11c-.1.4.13.8.6 1.63l.67 1.15c.13.23.2.34.23.46a1 1 0 0 1 0 .55c-.03.12-.1.23-.23.46s-.2.35-.29.44a1 1 0 0 1-.47.27c-.12.03-.25.03-.52.03H3.48c-.94 0-1.41 0-1.7.3c-.3.29-.3.76-.3 1.7zm7.8-.55a2.87 2.87 0 1 0 5.75 0a2.87 2.87 0 0 0-5.75 0" clip-rule="evenodd" opacity=".2" /><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.15 9.24a2.87 2.87 0 0 0-2.87 2.88a2.87 2.87 0 1 0 2.87-2.88" /><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.03 14.67h.9a1.47 1.47 0 0 1 1.28 2.2l-.4.69a6 6 0 0 0-.44.86a2 2 0 0 0 .56 2.09c.16.14.38.27.82.53l.08.05c.37.2.55.31.72.37a2 2 0 0 0 2.2-.6c.12-.13.22-.3.43-.67l.18-.32a1.82 1.82 0 0 1 3.16 0l.18.32c.21.36.32.54.43.68a2 2 0 0 0 2.2.59c.18-.06.36-.16.72-.37l.24-.14c.3-.17.44-.26.56-.35a2 2 0 0 0 .62-2.31a5 5 0 0 0-.31-.58l-.23-.4a1.77 1.77 0 0 1 1.53-2.64h.3c.49 0 .73 0 .93-.04a2 2 0 0 0 1.55-1.56c.04-.2.04-.44.04-.92v-.06c0-.48 0-.72-.04-.92A2 2 0 0 0 20.7 9.6c-.2-.04-.44-.04-.92-.04h-.31a1.77 1.77 0 0 1-1.53-2.65l.23-.4c.17-.3.25-.44.3-.57a2 2 0 0 0-.61-2.32a5 5 0 0 0-.56-.34l-.24-.14c-.36-.2-.54-.31-.71-.37a2 2 0 0 0-2.2.59a5 5 0 0 0-.44.68l-.18.31a1.82 1.82 0 0 1-3.16 0l-.18-.31a5 5 0 0 0-.43-.68a2 2 0 0 0-2.2-.6a7 7 0 0 0-.72.38l-.08.05c-.44.25-.66.38-.82.53a2 2 0 0 0-.56 2.08c.07.2.2.43.45.87l.39.68a1.48 1.48 0 0 1-1.28 2.21h-.9c-.51 0-.77 0-.98.05a2 2 0 0 0-1.52 1.52c-.05.21-.05.47-.05.98c0 .5 0 .76.05.97a2 2 0 0 0 1.52 1.53c.21.05.47.05.98.05" /></g></svg>`;
@@ -790,7 +807,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -951,6 +968,5132 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json(result);return
+        if path=='/api/edit-share':
+            name=data.get('name');new_name=data.get('new_name');access=data.get('access');password=data.get('admin_password')
+            if not all(isinstance(x,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',x) and x.lower() not in ('global','homes','printers','print
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
+            try:delete_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name,'files_preserved':True});return
+        if path=='/api/nas-shares':
+            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):
+                self.json({'error':'Choose a share name of 1–32 letters, digits, spaces, underscores or hyphens.'},400);return
+            if not isinstance(volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',volume) or '..' in volume:
+                self.json({'error':'Invalid storage selection.'},400);return
+            if not isinstance(access,dict) or not access or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
+                self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
+            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
+            valid_users={u['name'] for u in nas_user_list()}
+            if not set(access).issubset(valid_users):self.json({'error':'One or more users are not valid Samba accounts.'},409);return
+            if any(name.casefold()==s.casefold() for s in discover().get('shares',[])):
+                self.json({'error':'A share with this name already exists.'},409);return
+            try:create_nas_share(name,volume,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name});return
+        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/settings':
+            theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
+            interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
+            session_timeout=data.get('session_timeout',cfg.get('session_timeout',5))
+            if theme not in ('light','dark','dark-cb','light-cb') or not isinstance(accent,str) or len(accent)!=7 or accent[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in accent[1:]) or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
+            cfg.update(theme=theme,accent=accent,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
+        elif path=='/api/background':
+            image=data.get('image')
+            if not isinstance(image,str) or len(image)>2_900_000:self.json({'error':'Image too large'},400);return
+            if image:
+                try:
+                    meta,b64=image.split(',',1);mime=meta[5:].split(';',1)[0]
+                    if mime not in ('image/jpeg','image/png','image/webp'):raise ValueError()
+                    decoded=base64.b64decode(b64,validate=True)
+                    if len(decoded)>2*1024*1024:raise ValueError()
+                    if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
+                except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
+            cfg['login_background']=image
+        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+
+HOSTNAME_HELPER = r"""#!/usr/bin/env python3
+import json, re, subprocess
+from pathlib import Path
+try:
+    path=Path('/var/lib/pinas/config.json')
+    if not path.exists():raise SystemExit(0)
+    cfg=json.loads(path.read_text())
+    hostname=cfg.get('hostname','')
+    if not hostname:raise SystemExit(0)
+    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+        raise ValueError('Invalid hostname')
+    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+    if current!=hostname:
+        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+"""
+
+NAS_USER_HELPER = r"""#!/usr/bin/env python3
+# Privileged helper. No arbitrary command execution; narrowly scoped account actions.
+import grp, json, os, pwd, re, subprocess, sys
+
+def run(argv, **kwargs):
+    return subprocess.run(argv, check=True, timeout=20, **kwargs)
+
+def samba_users():
+    p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
+    result=[]
+    for line in p.stdout.splitlines():
+        fields=line.split(':',2)
+        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
+            result.append({'name':fields[0],'uid':fields[1]})
+    return sorted(result,key=lambda x:x['name'])
+
+if __name__=='__main__':
+    if os.geteuid()!=0:raise SystemExit(2)
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(samba_users()))
+        raise SystemExit(0)
+    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password'):raise SystemExit(2)
+    name=sys.argv[2]
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',name) or name in ('pinas','root','admin','nobody'):raise SystemExit(2)
+    password=sys.stdin.readline(258).rstrip('\n')
+    if not 12<=len(password)<=256:raise SystemExit(2)
+    if sys.argv[1]=='password':
+        group=grp.getgrnam('pinas-nas')
+        existing=pwd.getpwnam(name)
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin') or not any(u['name']==name for u in samba_users()):
+            raise SystemExit('Not a managed PiNAS Samba user')
+        run(['/usr/bin/smbpasswd','-s',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        raise SystemExit(0)
+    try:
+        group=grp.getgrnam('pinas-nas')
+    except KeyError:
+        run(['/usr/sbin/groupadd','pinas-nas'])
+        group=grp.getgrnam('pinas-nas')
+    created=False
+    try:
+        existing=pwd.getpwnam(name)
+    except KeyError:
+        existing=None
+    if existing:
+        # Repair only a partial PiNAS account from a previous failed attempt.
+        # Never repurpose unrelated Linux accounts.
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):
+            raise SystemExit('Linux account already exists and is not a PiNAS NAS account; choose another username')
+        if any(u['name']==name for u in samba_users()):
+            raise SystemExit('Samba account already exists; refresh the Users page')
+    else:
+        run(['/usr/sbin/useradd','--no-create-home','--shell','/usr/sbin/nologin','--gid','pinas-nas',name])
+        created=True
+    try:
+        run(['/usr/bin/smbpasswd','-s','-a',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        run(['/usr/bin/smbpasswd','-e',name],capture_output=True)
+    except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+        if created:subprocess.run(['/usr/sbin/userdel',name],check=False,timeout=10)
+        raise SystemExit('Samba account creation failed: '+str(exc))
+"""
+
+NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
+# Root-only share broker. Strict input validation and independent mount checks.
+import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
+SMB=pathlib.Path('/etc/samba/smb.conf')
+
+def run(cmd, **kw):
+    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+
+def read_db():
+    try:
+        value=json.loads(DB.read_text())
+        return value if isinstance(value,list) else []
+    except (OSError,ValueError):return []
+
+def atomic(path,content,mode=0o600):
+    fd,name=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,mode)
+        with os.fdopen(fd,'w') as f:
+            f.write(content);f.flush();os.fsync(f.fileno())
+        os.replace(name,path)
+    finally:
+        if os.path.exists(name):os.unlink(name)
+
+def check_volume(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
+    # Device must be a block device with an approved filesystem.
+    p=pathlib.Path(device)
+    if not p.is_block_device():raise ValueError('Selected storage is not a block device')
+    fs=run(['/usr/bin/lsblk','-n','-o','FSTYPE',device]).stdout.strip().splitlines()
+    if not fs or fs[0].strip().lower() not in ('ext4','xfs','btrfs'):raise ValueError('Unsupported filesystem')
+    target=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
+    if len(target)!=1:raise ValueError('Disk must have one unambiguous active mount')
+    mount=pathlib.Path(target[0]).resolve(strict=True)
+    if str(mount) in ('/','/boot','/boot/firmware') or any(str(mount).startswith(prefix) for prefix in ('/etc/','/var/','/usr/','/home/','/opt/','/root/','/proc/','/sys/','/run/')):
+        raise ValueError('System storage cannot host NAS shares')
+    if not mount.is_dir() or mount.is_symlink():raise ValueError('Invalid mount directory')
+    # Confirm mounted persistently via UUID, path or LABEL; do not trust browser data.
+    uuid=run(['/usr/sbin/blkid','-s','UUID','-o','value',device]).stdout.strip()
+    entries=[line.split() for line in pathlib.Path('/etc/fstab').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if not any(len(e)>=2 and e[1]==str(mount) and e[0] in (device,'UUID='+uuid,'/dev/disk/by-uuid/'+uuid) for e in entries):
+        raise ValueError('Disk is not persistently configured in fstab')
+    # Reject root device even when mounted at a second location.
+    rootdev=run(['/usr/bin/findmnt','-n','-o','SOURCE','/']).stdout.strip()
+    if rootdev.startswith('/dev/'):
+        rootparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',rootdev]).stdout.split())
+        selectedparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',device]).stdout.split())
+        if rootparents & selectedparents:raise ValueError('Operating system disk is protected')
+    return mount
+
+def main():
+    if os.geteuid()!=0:raise ValueError('Root helper required')
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        items=read_db()
+        for item in items:
+            if not isinstance(item,dict):continue
+            if isinstance(item.get('folder'),str) and item['folder'].startswith('/'):continue
+            device=item.get('volume','')
+            if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:continue
+            try:
+                mount=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
+                if len(mount)==1:item['folder']=str(pathlib.Path(mount[0])/'PiNAS Shares'/item.get('name',''))
+            except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired):pass
+        print(json.dumps(items));return
+    if len(sys.argv)==2 and sys.argv[1]=='edit':
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw)
+        name=request.get('name');new_name=request.get('new_name');access=request.get('access')
+        valid=lambda n:isinstance(n,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',n) and n.lower() not in ('global','homes','printers','print
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'folder':str(folder),'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main(),'ipc
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
+            try:delete_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name,'files_preserved':True});return
+        if path=='/api/nas-shares':
+            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):
+                self.json({'error':'Choose a share name of 1–32 letters, digits, spaces, underscores or hyphens.'},400);return
+            if not isinstance(volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',volume) or '..' in volume:
+                self.json({'error':'Invalid storage selection.'},400);return
+            if not isinstance(access,dict) or not access or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
+                self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
+            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
+            valid_users={u['name'] for u in nas_user_list()}
+            if not set(access).issubset(valid_users):self.json({'error':'One or more users are not valid Samba accounts.'},409);return
+            if any(name.casefold()==s.casefold() for s in discover().get('shares',[])):
+                self.json({'error':'A share with this name already exists.'},409);return
+            try:create_nas_share(name,volume,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name});return
+        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/settings':
+            theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
+            interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
+            session_timeout=data.get('session_timeout',cfg.get('session_timeout',5))
+            if theme not in ('light','dark','dark-cb','light-cb') or not isinstance(accent,str) or len(accent)!=7 or accent[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in accent[1:]) or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
+            cfg.update(theme=theme,accent=accent,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
+        elif path=='/api/background':
+            image=data.get('image')
+            if not isinstance(image,str) or len(image)>2_900_000:self.json({'error':'Image too large'},400);return
+            if image:
+                try:
+                    meta,b64=image.split(',',1);mime=meta[5:].split(';',1)[0]
+                    if mime not in ('image/jpeg','image/png','image/webp'):raise ValueError()
+                    decoded=base64.b64decode(b64,validate=True)
+                    if len(decoded)>2*1024*1024:raise ValueError()
+                    if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
+                except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
+            cfg['login_background']=image
+        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+
+HOSTNAME_HELPER = r"""#!/usr/bin/env python3
+import json, re, subprocess
+from pathlib import Path
+try:
+    path=Path('/var/lib/pinas/config.json')
+    if not path.exists():raise SystemExit(0)
+    cfg=json.loads(path.read_text())
+    hostname=cfg.get('hostname','')
+    if not hostname:raise SystemExit(0)
+    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+        raise ValueError('Invalid hostname')
+    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+    if current!=hostname:
+        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+"""
+
+NAS_USER_HELPER = r"""#!/usr/bin/env python3
+# Privileged helper. No arbitrary command execution; narrowly scoped account actions.
+import grp, json, os, pwd, re, subprocess, sys
+
+def run(argv, **kwargs):
+    return subprocess.run(argv, check=True, timeout=20, **kwargs)
+
+def samba_users():
+    p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
+    result=[]
+    for line in p.stdout.splitlines():
+        fields=line.split(':',2)
+        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
+            result.append({'name':fields[0],'uid':fields[1]})
+    return sorted(result,key=lambda x:x['name'])
+
+if __name__=='__main__':
+    if os.geteuid()!=0:raise SystemExit(2)
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(samba_users()))
+        raise SystemExit(0)
+    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password'):raise SystemExit(2)
+    name=sys.argv[2]
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',name) or name in ('pinas','root','admin','nobody'):raise SystemExit(2)
+    password=sys.stdin.readline(258).rstrip('\n')
+    if not 12<=len(password)<=256:raise SystemExit(2)
+    if sys.argv[1]=='password':
+        group=grp.getgrnam('pinas-nas')
+        existing=pwd.getpwnam(name)
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin') or not any(u['name']==name for u in samba_users()):
+            raise SystemExit('Not a managed PiNAS Samba user')
+        run(['/usr/bin/smbpasswd','-s',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        raise SystemExit(0)
+    try:
+        group=grp.getgrnam('pinas-nas')
+    except KeyError:
+        run(['/usr/sbin/groupadd','pinas-nas'])
+        group=grp.getgrnam('pinas-nas')
+    created=False
+    try:
+        existing=pwd.getpwnam(name)
+    except KeyError:
+        existing=None
+    if existing:
+        # Repair only a partial PiNAS account from a previous failed attempt.
+        # Never repurpose unrelated Linux accounts.
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):
+            raise SystemExit('Linux account already exists and is not a PiNAS NAS account; choose another username')
+        if any(u['name']==name for u in samba_users()):
+            raise SystemExit('Samba account already exists; refresh the Users page')
+    else:
+        run(['/usr/sbin/useradd','--no-create-home','--shell','/usr/sbin/nologin','--gid','pinas-nas',name])
+        created=True
+    try:
+        run(['/usr/bin/smbpasswd','-s','-a',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        run(['/usr/bin/smbpasswd','-e',name],capture_output=True)
+    except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+        if created:subprocess.run(['/usr/sbin/userdel',name],check=False,timeout=10)
+        raise SystemExit('Samba account creation failed: '+str(exc))
+"""
+
+NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
+# Root-only share broker. Strict input validation and independent mount checks.
+import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
+SMB=pathlib.Path('/etc/samba/smb.conf')
+
+def run(cmd, **kw):
+    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+
+def read_db():
+    try:
+        value=json.loads(DB.read_text())
+        return value if isinstance(value,list) else []
+    except (OSError,ValueError):return []
+
+def atomic(path,content,mode=0o600):
+    fd,name=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,mode)
+        with os.fdopen(fd,'w') as f:
+            f.write(content);f.flush();os.fsync(f.fileno())
+        os.replace(name,path)
+    finally:
+        if os.path.exists(name):os.unlink(name)
+
+def check_volume(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
+    # Device must be a block device with an approved filesystem.
+    p=pathlib.Path(device)
+    if not p.is_block_device():raise ValueError('Selected storage is not a block device')
+    fs=run(['/usr/bin/lsblk','-n','-o','FSTYPE',device]).stdout.strip().splitlines()
+    if not fs or fs[0].strip().lower() not in ('ext4','xfs','btrfs'):raise ValueError('Unsupported filesystem')
+    target=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
+    if len(target)!=1:raise ValueError('Disk must have one unambiguous active mount')
+    mount=pathlib.Path(target[0]).resolve(strict=True)
+    if str(mount) in ('/','/boot','/boot/firmware') or any(str(mount).startswith(prefix) for prefix in ('/etc/','/var/','/usr/','/home/','/opt/','/root/','/proc/','/sys/','/run/')):
+        raise ValueError('System storage cannot host NAS shares')
+    if not mount.is_dir() or mount.is_symlink():raise ValueError('Invalid mount directory')
+    # Confirm mounted persistently via UUID, path or LABEL; do not trust browser data.
+    uuid=run(['/usr/sbin/blkid','-s','UUID','-o','value',device]).stdout.strip()
+    entries=[line.split() for line in pathlib.Path('/etc/fstab').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if not any(len(e)>=2 and e[1]==str(mount) and e[0] in (device,'UUID='+uuid,'/dev/disk/by-uuid/'+uuid) for e in entries):
+        raise ValueError('Disk is not persistently configured in fstab')
+    # Reject root device even when mounted at a second location.
+    rootdev=run(['/usr/bin/findmnt','-n','-o','SOURCE','/']).stdout.strip()
+    if rootdev.startswith('/dev/'):
+        rootparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',rootdev]).stdout.split())
+        selectedparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',device]).stdout.split())
+        if rootparents & selectedparents:raise ValueError('Operating system disk is protected')
+    return mount
+
+def main():
+    if os.geteuid()!=0:raise ValueError('Root helper required')
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(read_db()));return
+    if len(sys.argv)==2 and sys.argv[1]=='delete':
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main()) for x in (name,new_name)):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
+                self.json({'error':'Assign at least one valid user access.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not set(access).issubset({u['name'] for u in nas_user_list()}):
+                self.json({'error':'Unknown NAS user.'},409);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be edited.'},404);return
+            try:edit_nas_share(name,new_name,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':new_name});return
+        if path=='/api/delete-share':
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
+            try:delete_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name,'files_preserved':True});return
+        if path=='/api/nas-shares':
+            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):
+                self.json({'error':'Choose a share name of 1–32 letters, digits, spaces, underscores or hyphens.'},400);return
+            if not isinstance(volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',volume) or '..' in volume:
+                self.json({'error':'Invalid storage selection.'},400);return
+            if not isinstance(access,dict) or not access or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
+                self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
+            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
+            valid_users={u['name'] for u in nas_user_list()}
+            if not set(access).issubset(valid_users):self.json({'error':'One or more users are not valid Samba accounts.'},409);return
+            if any(name.casefold()==s.casefold() for s in discover().get('shares',[])):
+                self.json({'error':'A share with this name already exists.'},409);return
+            try:create_nas_share(name,volume,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name});return
+        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/settings':
+            theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
+            interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
+            session_timeout=data.get('session_timeout',cfg.get('session_timeout',5))
+            if theme not in ('light','dark','dark-cb','light-cb') or not isinstance(accent,str) or len(accent)!=7 or accent[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in accent[1:]) or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
+            cfg.update(theme=theme,accent=accent,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
+        elif path=='/api/background':
+            image=data.get('image')
+            if not isinstance(image,str) or len(image)>2_900_000:self.json({'error':'Image too large'},400);return
+            if image:
+                try:
+                    meta,b64=image.split(',',1);mime=meta[5:].split(';',1)[0]
+                    if mime not in ('image/jpeg','image/png','image/webp'):raise ValueError()
+                    decoded=base64.b64decode(b64,validate=True)
+                    if len(decoded)>2*1024*1024:raise ValueError()
+                    if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
+                except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
+            cfg['login_background']=image
+        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+
+HOSTNAME_HELPER = r"""#!/usr/bin/env python3
+import json, re, subprocess
+from pathlib import Path
+try:
+    path=Path('/var/lib/pinas/config.json')
+    if not path.exists():raise SystemExit(0)
+    cfg=json.loads(path.read_text())
+    hostname=cfg.get('hostname','')
+    if not hostname:raise SystemExit(0)
+    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+        raise ValueError('Invalid hostname')
+    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+    if current!=hostname:
+        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+"""
+
+NAS_USER_HELPER = r"""#!/usr/bin/env python3
+# Privileged helper. No arbitrary command execution; narrowly scoped account actions.
+import grp, json, os, pwd, re, subprocess, sys
+
+def run(argv, **kwargs):
+    return subprocess.run(argv, check=True, timeout=20, **kwargs)
+
+def samba_users():
+    p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
+    result=[]
+    for line in p.stdout.splitlines():
+        fields=line.split(':',2)
+        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
+            result.append({'name':fields[0],'uid':fields[1]})
+    return sorted(result,key=lambda x:x['name'])
+
+if __name__=='__main__':
+    if os.geteuid()!=0:raise SystemExit(2)
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(samba_users()))
+        raise SystemExit(0)
+    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password'):raise SystemExit(2)
+    name=sys.argv[2]
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',name) or name in ('pinas','root','admin','nobody'):raise SystemExit(2)
+    password=sys.stdin.readline(258).rstrip('\n')
+    if not 12<=len(password)<=256:raise SystemExit(2)
+    if sys.argv[1]=='password':
+        group=grp.getgrnam('pinas-nas')
+        existing=pwd.getpwnam(name)
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin') or not any(u['name']==name for u in samba_users()):
+            raise SystemExit('Not a managed PiNAS Samba user')
+        run(['/usr/bin/smbpasswd','-s',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        raise SystemExit(0)
+    try:
+        group=grp.getgrnam('pinas-nas')
+    except KeyError:
+        run(['/usr/sbin/groupadd','pinas-nas'])
+        group=grp.getgrnam('pinas-nas')
+    created=False
+    try:
+        existing=pwd.getpwnam(name)
+    except KeyError:
+        existing=None
+    if existing:
+        # Repair only a partial PiNAS account from a previous failed attempt.
+        # Never repurpose unrelated Linux accounts.
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):
+            raise SystemExit('Linux account already exists and is not a PiNAS NAS account; choose another username')
+        if any(u['name']==name for u in samba_users()):
+            raise SystemExit('Samba account already exists; refresh the Users page')
+    else:
+        run(['/usr/sbin/useradd','--no-create-home','--shell','/usr/sbin/nologin','--gid','pinas-nas',name])
+        created=True
+    try:
+        run(['/usr/bin/smbpasswd','-s','-a',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        run(['/usr/bin/smbpasswd','-e',name],capture_output=True)
+    except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+        if created:subprocess.run(['/usr/sbin/userdel',name],check=False,timeout=10)
+        raise SystemExit('Samba account creation failed: '+str(exc))
+"""
+
+NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
+# Root-only share broker. Strict input validation and independent mount checks.
+import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
+SMB=pathlib.Path('/etc/samba/smb.conf')
+
+def run(cmd, **kw):
+    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+
+def read_db():
+    try:
+        value=json.loads(DB.read_text())
+        return value if isinstance(value,list) else []
+    except (OSError,ValueError):return []
+
+def atomic(path,content,mode=0o600):
+    fd,name=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,mode)
+        with os.fdopen(fd,'w') as f:
+            f.write(content);f.flush();os.fsync(f.fileno())
+        os.replace(name,path)
+    finally:
+        if os.path.exists(name):os.unlink(name)
+
+def check_volume(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
+    # Device must be a block device with an approved filesystem.
+    p=pathlib.Path(device)
+    if not p.is_block_device():raise ValueError('Selected storage is not a block device')
+    fs=run(['/usr/bin/lsblk','-n','-o','FSTYPE',device]).stdout.strip().splitlines()
+    if not fs or fs[0].strip().lower() not in ('ext4','xfs','btrfs'):raise ValueError('Unsupported filesystem')
+    target=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
+    if len(target)!=1:raise ValueError('Disk must have one unambiguous active mount')
+    mount=pathlib.Path(target[0]).resolve(strict=True)
+    if str(mount) in ('/','/boot','/boot/firmware') or any(str(mount).startswith(prefix) for prefix in ('/etc/','/var/','/usr/','/home/','/opt/','/root/','/proc/','/sys/','/run/')):
+        raise ValueError('System storage cannot host NAS shares')
+    if not mount.is_dir() or mount.is_symlink():raise ValueError('Invalid mount directory')
+    # Confirm mounted persistently via UUID, path or LABEL; do not trust browser data.
+    uuid=run(['/usr/sbin/blkid','-s','UUID','-o','value',device]).stdout.strip()
+    entries=[line.split() for line in pathlib.Path('/etc/fstab').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if not any(len(e)>=2 and e[1]==str(mount) and e[0] in (device,'UUID='+uuid,'/dev/disk/by-uuid/'+uuid) for e in entries):
+        raise ValueError('Disk is not persistently configured in fstab')
+    # Reject root device even when mounted at a second location.
+    rootdev=run(['/usr/bin/findmnt','-n','-o','SOURCE','/']).stdout.strip()
+    if rootdev.startswith('/dev/'):
+        rootparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',rootdev]).stdout.split())
+        selectedparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',device]).stdout.split())
+        if rootparents & selectedparents:raise ValueError('Operating system disk is protected')
+    return mount
+
+def main():
+    if os.geteuid()!=0:raise ValueError('Root helper required')
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(read_db()));return
+    if len(sys.argv)==2 and sys.argv[1]=='delete':
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main(),'ipc
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main(),'ipc
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
+            try:delete_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name,'files_preserved':True});return
+        if path=='/api/nas-shares':
+            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):
+                self.json({'error':'Choose a share name of 1–32 letters, digits, spaces, underscores or hyphens.'},400);return
+            if not isinstance(volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',volume) or '..' in volume:
+                self.json({'error':'Invalid storage selection.'},400);return
+            if not isinstance(access,dict) or not access or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
+                self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
+            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
+            valid_users={u['name'] for u in nas_user_list()}
+            if not set(access).issubset(valid_users):self.json({'error':'One or more users are not valid Samba accounts.'},409);return
+            if any(name.casefold()==s.casefold() for s in discover().get('shares',[])):
+                self.json({'error':'A share with this name already exists.'},409);return
+            try:create_nas_share(name,volume,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name});return
+        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/settings':
+            theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
+            interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
+            session_timeout=data.get('session_timeout',cfg.get('session_timeout',5))
+            if theme not in ('light','dark','dark-cb','light-cb') or not isinstance(accent,str) or len(accent)!=7 or accent[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in accent[1:]) or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
+            cfg.update(theme=theme,accent=accent,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
+        elif path=='/api/background':
+            image=data.get('image')
+            if not isinstance(image,str) or len(image)>2_900_000:self.json({'error':'Image too large'},400);return
+            if image:
+                try:
+                    meta,b64=image.split(',',1);mime=meta[5:].split(';',1)[0]
+                    if mime not in ('image/jpeg','image/png','image/webp'):raise ValueError()
+                    decoded=base64.b64decode(b64,validate=True)
+                    if len(decoded)>2*1024*1024:raise ValueError()
+                    if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
+                except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
+            cfg['login_background']=image
+        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+
+HOSTNAME_HELPER = r"""#!/usr/bin/env python3
+import json, re, subprocess
+from pathlib import Path
+try:
+    path=Path('/var/lib/pinas/config.json')
+    if not path.exists():raise SystemExit(0)
+    cfg=json.loads(path.read_text())
+    hostname=cfg.get('hostname','')
+    if not hostname:raise SystemExit(0)
+    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+        raise ValueError('Invalid hostname')
+    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+    if current!=hostname:
+        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+"""
+
+NAS_USER_HELPER = r"""#!/usr/bin/env python3
+# Privileged helper. No arbitrary command execution; narrowly scoped account actions.
+import grp, json, os, pwd, re, subprocess, sys
+
+def run(argv, **kwargs):
+    return subprocess.run(argv, check=True, timeout=20, **kwargs)
+
+def samba_users():
+    p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
+    result=[]
+    for line in p.stdout.splitlines():
+        fields=line.split(':',2)
+        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
+            result.append({'name':fields[0],'uid':fields[1]})
+    return sorted(result,key=lambda x:x['name'])
+
+if __name__=='__main__':
+    if os.geteuid()!=0:raise SystemExit(2)
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(samba_users()))
+        raise SystemExit(0)
+    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password'):raise SystemExit(2)
+    name=sys.argv[2]
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',name) or name in ('pinas','root','admin','nobody'):raise SystemExit(2)
+    password=sys.stdin.readline(258).rstrip('\n')
+    if not 12<=len(password)<=256:raise SystemExit(2)
+    if sys.argv[1]=='password':
+        group=grp.getgrnam('pinas-nas')
+        existing=pwd.getpwnam(name)
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin') or not any(u['name']==name for u in samba_users()):
+            raise SystemExit('Not a managed PiNAS Samba user')
+        run(['/usr/bin/smbpasswd','-s',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        raise SystemExit(0)
+    try:
+        group=grp.getgrnam('pinas-nas')
+    except KeyError:
+        run(['/usr/sbin/groupadd','pinas-nas'])
+        group=grp.getgrnam('pinas-nas')
+    created=False
+    try:
+        existing=pwd.getpwnam(name)
+    except KeyError:
+        existing=None
+    if existing:
+        # Repair only a partial PiNAS account from a previous failed attempt.
+        # Never repurpose unrelated Linux accounts.
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):
+            raise SystemExit('Linux account already exists and is not a PiNAS NAS account; choose another username')
+        if any(u['name']==name for u in samba_users()):
+            raise SystemExit('Samba account already exists; refresh the Users page')
+    else:
+        run(['/usr/sbin/useradd','--no-create-home','--shell','/usr/sbin/nologin','--gid','pinas-nas',name])
+        created=True
+    try:
+        run(['/usr/bin/smbpasswd','-s','-a',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        run(['/usr/bin/smbpasswd','-e',name],capture_output=True)
+    except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+        if created:subprocess.run(['/usr/sbin/userdel',name],check=False,timeout=10)
+        raise SystemExit('Samba account creation failed: '+str(exc))
+"""
+
+NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
+# Root-only share broker. Strict input validation and independent mount checks.
+import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
+SMB=pathlib.Path('/etc/samba/smb.conf')
+
+def run(cmd, **kw):
+    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+
+def read_db():
+    try:
+        value=json.loads(DB.read_text())
+        return value if isinstance(value,list) else []
+    except (OSError,ValueError):return []
+
+def atomic(path,content,mode=0o600):
+    fd,name=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,mode)
+        with os.fdopen(fd,'w') as f:
+            f.write(content);f.flush();os.fsync(f.fileno())
+        os.replace(name,path)
+    finally:
+        if os.path.exists(name):os.unlink(name)
+
+def check_volume(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
+    # Device must be a block device with an approved filesystem.
+    p=pathlib.Path(device)
+    if not p.is_block_device():raise ValueError('Selected storage is not a block device')
+    fs=run(['/usr/bin/lsblk','-n','-o','FSTYPE',device]).stdout.strip().splitlines()
+    if not fs or fs[0].strip().lower() not in ('ext4','xfs','btrfs'):raise ValueError('Unsupported filesystem')
+    target=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
+    if len(target)!=1:raise ValueError('Disk must have one unambiguous active mount')
+    mount=pathlib.Path(target[0]).resolve(strict=True)
+    if str(mount) in ('/','/boot','/boot/firmware') or any(str(mount).startswith(prefix) for prefix in ('/etc/','/var/','/usr/','/home/','/opt/','/root/','/proc/','/sys/','/run/')):
+        raise ValueError('System storage cannot host NAS shares')
+    if not mount.is_dir() or mount.is_symlink():raise ValueError('Invalid mount directory')
+    # Confirm mounted persistently via UUID, path or LABEL; do not trust browser data.
+    uuid=run(['/usr/sbin/blkid','-s','UUID','-o','value',device]).stdout.strip()
+    entries=[line.split() for line in pathlib.Path('/etc/fstab').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if not any(len(e)>=2 and e[1]==str(mount) and e[0] in (device,'UUID='+uuid,'/dev/disk/by-uuid/'+uuid) for e in entries):
+        raise ValueError('Disk is not persistently configured in fstab')
+    # Reject root device even when mounted at a second location.
+    rootdev=run(['/usr/bin/findmnt','-n','-o','SOURCE','/']).stdout.strip()
+    if rootdev.startswith('/dev/'):
+        rootparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',rootdev]).stdout.split())
+        selectedparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',device]).stdout.split())
+        if rootparents & selectedparents:raise ValueError('Operating system disk is protected')
+    return mount
+
+def main():
+    if os.geteuid()!=0:raise ValueError('Root helper required')
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(read_db()));return
+    if len(sys.argv)==2 and sys.argv[1]=='delete':
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main()) for x in (name,new_name)):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
+                self.json({'error':'Assign at least one valid user access.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not set(access).issubset({u['name'] for u in nas_user_list()}):
+                self.json({'error':'Unknown NAS user.'},409);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be edited.'},404);return
+            try:edit_nas_share(name,new_name,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':new_name});return
+        if path=='/api/delete-share':
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
+            try:delete_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name,'files_preserved':True});return
+        if path=='/api/nas-shares':
+            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):
+                self.json({'error':'Choose a share name of 1–32 letters, digits, spaces, underscores or hyphens.'},400);return
+            if not isinstance(volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',volume) or '..' in volume:
+                self.json({'error':'Invalid storage selection.'},400);return
+            if not isinstance(access,dict) or not access or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
+                self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
+            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
+            valid_users={u['name'] for u in nas_user_list()}
+            if not set(access).issubset(valid_users):self.json({'error':'One or more users are not valid Samba accounts.'},409);return
+            if any(name.casefold()==s.casefold() for s in discover().get('shares',[])):
+                self.json({'error':'A share with this name already exists.'},409);return
+            try:create_nas_share(name,volume,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name});return
+        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/settings':
+            theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
+            interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
+            session_timeout=data.get('session_timeout',cfg.get('session_timeout',5))
+            if theme not in ('light','dark','dark-cb','light-cb') or not isinstance(accent,str) or len(accent)!=7 or accent[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in accent[1:]) or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
+            cfg.update(theme=theme,accent=accent,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
+        elif path=='/api/background':
+            image=data.get('image')
+            if not isinstance(image,str) or len(image)>2_900_000:self.json({'error':'Image too large'},400);return
+            if image:
+                try:
+                    meta,b64=image.split(',',1);mime=meta[5:].split(';',1)[0]
+                    if mime not in ('image/jpeg','image/png','image/webp'):raise ValueError()
+                    decoded=base64.b64decode(b64,validate=True)
+                    if len(decoded)>2*1024*1024:raise ValueError()
+                    if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
+                except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
+            cfg['login_background']=image
+        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+
+HOSTNAME_HELPER = r"""#!/usr/bin/env python3
+import json, re, subprocess
+from pathlib import Path
+try:
+    path=Path('/var/lib/pinas/config.json')
+    if not path.exists():raise SystemExit(0)
+    cfg=json.loads(path.read_text())
+    hostname=cfg.get('hostname','')
+    if not hostname:raise SystemExit(0)
+    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+        raise ValueError('Invalid hostname')
+    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+    if current!=hostname:
+        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+"""
+
+NAS_USER_HELPER = r"""#!/usr/bin/env python3
+# Privileged helper. No arbitrary command execution; narrowly scoped account actions.
+import grp, json, os, pwd, re, subprocess, sys
+
+def run(argv, **kwargs):
+    return subprocess.run(argv, check=True, timeout=20, **kwargs)
+
+def samba_users():
+    p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
+    result=[]
+    for line in p.stdout.splitlines():
+        fields=line.split(':',2)
+        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
+            result.append({'name':fields[0],'uid':fields[1]})
+    return sorted(result,key=lambda x:x['name'])
+
+if __name__=='__main__':
+    if os.geteuid()!=0:raise SystemExit(2)
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(samba_users()))
+        raise SystemExit(0)
+    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password'):raise SystemExit(2)
+    name=sys.argv[2]
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',name) or name in ('pinas','root','admin','nobody'):raise SystemExit(2)
+    password=sys.stdin.readline(258).rstrip('\n')
+    if not 12<=len(password)<=256:raise SystemExit(2)
+    if sys.argv[1]=='password':
+        group=grp.getgrnam('pinas-nas')
+        existing=pwd.getpwnam(name)
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin') or not any(u['name']==name for u in samba_users()):
+            raise SystemExit('Not a managed PiNAS Samba user')
+        run(['/usr/bin/smbpasswd','-s',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        raise SystemExit(0)
+    try:
+        group=grp.getgrnam('pinas-nas')
+    except KeyError:
+        run(['/usr/sbin/groupadd','pinas-nas'])
+        group=grp.getgrnam('pinas-nas')
+    created=False
+    try:
+        existing=pwd.getpwnam(name)
+    except KeyError:
+        existing=None
+    if existing:
+        # Repair only a partial PiNAS account from a previous failed attempt.
+        # Never repurpose unrelated Linux accounts.
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):
+            raise SystemExit('Linux account already exists and is not a PiNAS NAS account; choose another username')
+        if any(u['name']==name for u in samba_users()):
+            raise SystemExit('Samba account already exists; refresh the Users page')
+    else:
+        run(['/usr/sbin/useradd','--no-create-home','--shell','/usr/sbin/nologin','--gid','pinas-nas',name])
+        created=True
+    try:
+        run(['/usr/bin/smbpasswd','-s','-a',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        run(['/usr/bin/smbpasswd','-e',name],capture_output=True)
+    except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+        if created:subprocess.run(['/usr/sbin/userdel',name],check=False,timeout=10)
+        raise SystemExit('Samba account creation failed: '+str(exc))
+"""
+
+NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
+# Root-only share broker. Strict input validation and independent mount checks.
+import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
+SMB=pathlib.Path('/etc/samba/smb.conf')
+
+def run(cmd, **kw):
+    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+
+def read_db():
+    try:
+        value=json.loads(DB.read_text())
+        return value if isinstance(value,list) else []
+    except (OSError,ValueError):return []
+
+def atomic(path,content,mode=0o600):
+    fd,name=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,mode)
+        with os.fdopen(fd,'w') as f:
+            f.write(content);f.flush();os.fsync(f.fileno())
+        os.replace(name,path)
+    finally:
+        if os.path.exists(name):os.unlink(name)
+
+def check_volume(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
+    # Device must be a block device with an approved filesystem.
+    p=pathlib.Path(device)
+    if not p.is_block_device():raise ValueError('Selected storage is not a block device')
+    fs=run(['/usr/bin/lsblk','-n','-o','FSTYPE',device]).stdout.strip().splitlines()
+    if not fs or fs[0].strip().lower() not in ('ext4','xfs','btrfs'):raise ValueError('Unsupported filesystem')
+    target=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
+    if len(target)!=1:raise ValueError('Disk must have one unambiguous active mount')
+    mount=pathlib.Path(target[0]).resolve(strict=True)
+    if str(mount) in ('/','/boot','/boot/firmware') or any(str(mount).startswith(prefix) for prefix in ('/etc/','/var/','/usr/','/home/','/opt/','/root/','/proc/','/sys/','/run/')):
+        raise ValueError('System storage cannot host NAS shares')
+    if not mount.is_dir() or mount.is_symlink():raise ValueError('Invalid mount directory')
+    # Confirm mounted persistently via UUID, path or LABEL; do not trust browser data.
+    uuid=run(['/usr/sbin/blkid','-s','UUID','-o','value',device]).stdout.strip()
+    entries=[line.split() for line in pathlib.Path('/etc/fstab').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if not any(len(e)>=2 and e[1]==str(mount) and e[0] in (device,'UUID='+uuid,'/dev/disk/by-uuid/'+uuid) for e in entries):
+        raise ValueError('Disk is not persistently configured in fstab')
+    # Reject root device even when mounted at a second location.
+    rootdev=run(['/usr/bin/findmnt','-n','-o','SOURCE','/']).stdout.strip()
+    if rootdev.startswith('/dev/'):
+        rootparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',rootdev]).stdout.split())
+        selectedparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',device]).stdout.split())
+        if rootparents & selectedparents:raise ValueError('Operating system disk is protected')
+    return mount
+
+def main():
+    if os.geteuid()!=0:raise ValueError('Root helper required')
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(read_db()));return
+    if len(sys.argv)==2 and sys.argv[1]=='delete':
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main())
+        if not valid(name) or not valid(new_name):raise ValueError('Invalid share name')
+        if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid permissions')
+        current=read_db()
+        matches=[i for i in current if isinstance(i,dict) and i.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        if any(i.get('name','').casefold()==new_name.casefold() and i.get('name')!=name for i in current if isinstance(i,dict)):raise ValueError('Share name already exists')
+        samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+        for user in access:
+            if user not in samba:raise ValueError('Samba account not found: '+user)
+            pwd.getpwnam(user)
+        item=matches[0]
+        mount=check_volume(item.get('volume'))
+        folder=pathlib.Path(item.get('folder') or str(mount/'PiNAS Shares'/name))
+        if folder.parent!=mount/'PiNAS Shares' or folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:raise ValueError('Unsafe managed share folder')
+        oldconf=CONF.read_text()
+        section=re.compile(r'(?m)^\\['+re.escape(name)+r'\\][ \\t]*\\n(?:(?!\\[).*(?:\\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed share section missing or ambiguous')
+        if new_name!=name:
+            existing=run(['/usr/bin/testparm','-s']).stdout
+            if any(line.strip().casefold()=='['+new_name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+        ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+        stanza='['+new_name+']\\n   path = '+str(folder)+'\\n   browseable = yes\\n   guest ok = no\\n   read only = yes\\n   valid users = '+', '.join(access)+'\\n'
+        if rw:stanza+='   write list = '+', '.join(rw)+'\\n'
+        stanza+='   create mask = 0660\\n   directory mask = 0770\\n   follow symlinks = no\\n   wide links = no\\n'
+        newconf=oldconf[:found[0].start()]+stanza+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        oldacl=run(['/usr/bin/getfacl','-p',str(folder)]).stdout
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        try:
+            # Clear obsolete named user ACLs on the share root; leave contents untouched.
+            run(['/usr/bin/setfacl','-b',str(folder)])
+            run(['/usr/bin/setfacl','-k',str(folder)])
+            run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
+            atomic(CONF,newconf,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            item['name']=new_name;item['access']=access;item['folder']=str(folder)
+            atomic(DB,json.dumps(current,indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:
+                restore=subprocess.run(['/usr/bin/setfacl','--restore=-'],input=oldacl,text=True,capture_output=True,timeout=15)
+                if restore.returncode:raise ValueError(restore.stderr)
+            except Exception:pass
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        print(json.dumps({'ok':True,'name':new_name}));return
+    if len(sys.argv)==2 and sys.argv[1]=='delete':
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main(),'ipc
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
+            try:delete_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name,'files_preserved':True});return
+        if path=='/api/nas-shares':
+            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):
+                self.json({'error':'Choose a share name of 1–32 letters, digits, spaces, underscores or hyphens.'},400);return
+            if not isinstance(volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',volume) or '..' in volume:
+                self.json({'error':'Invalid storage selection.'},400);return
+            if not isinstance(access,dict) or not access or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
+                self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
+            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
+            valid_users={u['name'] for u in nas_user_list()}
+            if not set(access).issubset(valid_users):self.json({'error':'One or more users are not valid Samba accounts.'},409);return
+            if any(name.casefold()==s.casefold() for s in discover().get('shares',[])):
+                self.json({'error':'A share with this name already exists.'},409);return
+            try:create_nas_share(name,volume,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':name});return
+        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/settings':
+            theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
+            interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
+            session_timeout=data.get('session_timeout',cfg.get('session_timeout',5))
+            if theme not in ('light','dark','dark-cb','light-cb') or not isinstance(accent,str) or len(accent)!=7 or accent[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in accent[1:]) or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
+            cfg.update(theme=theme,accent=accent,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
+        elif path=='/api/background':
+            image=data.get('image')
+            if not isinstance(image,str) or len(image)>2_900_000:self.json({'error':'Image too large'},400);return
+            if image:
+                try:
+                    meta,b64=image.split(',',1);mime=meta[5:].split(';',1)[0]
+                    if mime not in ('image/jpeg','image/png','image/webp'):raise ValueError()
+                    decoded=base64.b64decode(b64,validate=True)
+                    if len(decoded)>2*1024*1024:raise ValueError()
+                    if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
+                except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
+            cfg['login_background']=image
+        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+
+HOSTNAME_HELPER = r"""#!/usr/bin/env python3
+import json, re, subprocess
+from pathlib import Path
+try:
+    path=Path('/var/lib/pinas/config.json')
+    if not path.exists():raise SystemExit(0)
+    cfg=json.loads(path.read_text())
+    hostname=cfg.get('hostname','')
+    if not hostname:raise SystemExit(0)
+    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+        raise ValueError('Invalid hostname')
+    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+    if current!=hostname:
+        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+"""
+
+NAS_USER_HELPER = r"""#!/usr/bin/env python3
+# Privileged helper. No arbitrary command execution; narrowly scoped account actions.
+import grp, json, os, pwd, re, subprocess, sys
+
+def run(argv, **kwargs):
+    return subprocess.run(argv, check=True, timeout=20, **kwargs)
+
+def samba_users():
+    p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
+    result=[]
+    for line in p.stdout.splitlines():
+        fields=line.split(':',2)
+        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
+            result.append({'name':fields[0],'uid':fields[1]})
+    return sorted(result,key=lambda x:x['name'])
+
+if __name__=='__main__':
+    if os.geteuid()!=0:raise SystemExit(2)
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(samba_users()))
+        raise SystemExit(0)
+    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password'):raise SystemExit(2)
+    name=sys.argv[2]
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',name) or name in ('pinas','root','admin','nobody'):raise SystemExit(2)
+    password=sys.stdin.readline(258).rstrip('\n')
+    if not 12<=len(password)<=256:raise SystemExit(2)
+    if sys.argv[1]=='password':
+        group=grp.getgrnam('pinas-nas')
+        existing=pwd.getpwnam(name)
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin') or not any(u['name']==name for u in samba_users()):
+            raise SystemExit('Not a managed PiNAS Samba user')
+        run(['/usr/bin/smbpasswd','-s',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        raise SystemExit(0)
+    try:
+        group=grp.getgrnam('pinas-nas')
+    except KeyError:
+        run(['/usr/sbin/groupadd','pinas-nas'])
+        group=grp.getgrnam('pinas-nas')
+    created=False
+    try:
+        existing=pwd.getpwnam(name)
+    except KeyError:
+        existing=None
+    if existing:
+        # Repair only a partial PiNAS account from a previous failed attempt.
+        # Never repurpose unrelated Linux accounts.
+        if existing.pw_gid!=group.gr_gid or existing.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):
+            raise SystemExit('Linux account already exists and is not a PiNAS NAS account; choose another username')
+        if any(u['name']==name for u in samba_users()):
+            raise SystemExit('Samba account already exists; refresh the Users page')
+    else:
+        run(['/usr/sbin/useradd','--no-create-home','--shell','/usr/sbin/nologin','--gid','pinas-nas',name])
+        created=True
+    try:
+        run(['/usr/bin/smbpasswd','-s','-a',name],input=password+'\n'+password+'\n',text=True,capture_output=True)
+        run(['/usr/bin/smbpasswd','-e',name],capture_output=True)
+    except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
+        if created:subprocess.run(['/usr/sbin/userdel',name],check=False,timeout=10)
+        raise SystemExit('Samba account creation failed: '+str(exc))
+"""
+
+NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
+# Root-only share broker. Strict input validation and independent mount checks.
+import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
+SMB=pathlib.Path('/etc/samba/smb.conf')
+
+def run(cmd, **kw):
+    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+
+def read_db():
+    try:
+        value=json.loads(DB.read_text())
+        return value if isinstance(value,list) else []
+    except (OSError,ValueError):return []
+
+def atomic(path,content,mode=0o600):
+    fd,name=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,mode)
+        with os.fdopen(fd,'w') as f:
+            f.write(content);f.flush();os.fsync(f.fileno())
+        os.replace(name,path)
+    finally:
+        if os.path.exists(name):os.unlink(name)
+
+def check_volume(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
+    # Device must be a block device with an approved filesystem.
+    p=pathlib.Path(device)
+    if not p.is_block_device():raise ValueError('Selected storage is not a block device')
+    fs=run(['/usr/bin/lsblk','-n','-o','FSTYPE',device]).stdout.strip().splitlines()
+    if not fs or fs[0].strip().lower() not in ('ext4','xfs','btrfs'):raise ValueError('Unsupported filesystem')
+    target=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
+    if len(target)!=1:raise ValueError('Disk must have one unambiguous active mount')
+    mount=pathlib.Path(target[0]).resolve(strict=True)
+    if str(mount) in ('/','/boot','/boot/firmware') or any(str(mount).startswith(prefix) for prefix in ('/etc/','/var/','/usr/','/home/','/opt/','/root/','/proc/','/sys/','/run/')):
+        raise ValueError('System storage cannot host NAS shares')
+    if not mount.is_dir() or mount.is_symlink():raise ValueError('Invalid mount directory')
+    # Confirm mounted persistently via UUID, path or LABEL; do not trust browser data.
+    uuid=run(['/usr/sbin/blkid','-s','UUID','-o','value',device]).stdout.strip()
+    entries=[line.split() for line in pathlib.Path('/etc/fstab').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if not any(len(e)>=2 and e[1]==str(mount) and e[0] in (device,'UUID='+uuid,'/dev/disk/by-uuid/'+uuid) for e in entries):
+        raise ValueError('Disk is not persistently configured in fstab')
+    # Reject root device even when mounted at a second location.
+    rootdev=run(['/usr/bin/findmnt','-n','-o','SOURCE','/']).stdout.strip()
+    if rootdev.startswith('/dev/'):
+        rootparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',rootdev]).stdout.split())
+        selectedparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',device]).stdout.split())
+        if rootparents & selectedparents:raise ValueError('Operating system disk is protected')
+    return mount
+
+def main():
+    if os.geteuid()!=0:raise ValueError('Root helper required')
+    if len(sys.argv)==2 and sys.argv[1]=='list':
+        print(json.dumps(read_db()));return
+    if len(sys.argv)==2 and sys.argv[1]=='delete':
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        oldconf=CONF.read_text()
+        # Match only a complete, exact managed Samba section; never touch unrelated shares.
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        found=list(section.finditer(oldconf))
+        if len(found)!=1:raise ValueError('Managed Samba share section missing or ambiguous')
+        updated=oldconf[:found[0].start()]+oldconf[found[0].end():]
+        olddb=DB.read_text()
+        try:
+            atomic(CONF,updated,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps([item for item in current if not (isinstance(item,dict) and item.get('name')==name)],indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            raise
+        # Deliberately leave the share directory, ACLs and files untouched.
+        print(json.dumps({'ok':True,'files_preserved':True}));return
+    if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw)
+    name=request.get('name');access=request.get('access');device=request.get('volume')
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
+    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    # Verify users exist in Samba and Linux before creating any directory.
+    samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
+    for user in access:
+        if user not in samba:raise ValueError('Samba account not found: '+user)
+        pwd.getpwnam(user)
+    mount=check_volume(device)
+    current=read_db()
+    if any(item.get('name','').casefold()==name.casefold() for item in current):raise ValueError('Share already exists')
+    # Samba's own configuration may include external shares; reject collisions.
+    existing=run(['/usr/bin/testparm','-s']).stdout
+    if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
+    # No preexisting folder is ever adopted or modified by this operation.
+    root=mount/'PiNAS Shares'
+    if root.is_symlink():raise ValueError('Unsafe share root')
+    root.mkdir(mode=0o711,exist_ok=True)
+    if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
+    folder=root/name
+    if folder.exists() or folder.is_symlink():raise ValueError('Folder already exists; choose a different name')
+    if not pathlib.Path('/usr/bin/setfacl').exists():raise ValueError('POSIX ACL tools are required (install acl)')
+    # Validate smb.conf can be managed before changing filesystem.
+    original=SMB.read_text()
+    include='   include = /etc/samba/pinas-shares.conf'
+    if include not in original:
+        if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
+        amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
+    else:amended=original
+    # Explicit per-user access; default deny for other NAS accounts.
+    ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
+    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    oldconf=CONF.read_text() if CONF.exists() else ''
+    if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
+    folder.mkdir(mode=0o700)
+    try:
+        # Root-owned folder; Samba creates files as authenticated Unix users.
+        os.chown(folder,0,0)
+        os.chmod(folder,0o700)
+        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        default=['d:'+entry for entry in acl]
+        run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if amended!=original:atomic(SMB,amended,0o644)
+        atomic(CONF,oldconf+stanza,0o644)
+        run(['/usr/bin/testparm','-s'])
+        run(['/usr/bin/systemctl','reload','smbd'])
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'access':access})
+        atomic(DB,json.dumps(current,indent=2),0o600)
+    except Exception:
+        atomic(CONF,oldconf,0o644)
+        if amended!=original:atomic(SMB,original,0o644)
+        try:run(['/usr/bin/systemctl','reload','smbd'])
+        except Exception:pass
+        try:folder.rmdir()
+        except OSError:pass
+        raise
+    print(json.dumps({'ok':True,'name':name}))
+
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+NAS_FILES_HELPER = r"""#!/usr/bin/env python3
+# Privileged, narrow file broker. Authentication against Samba passdb; filesystem
+# operations executed as the NAS user's actual UID/GID and supplementary groups.
+import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+DB=pathlib.Path('/var/lib/pinas/shares.json')
+def md4(message):
+    # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
+    import struct
+    original=len(message);message+=b'\x80';message+=b'\0'*((56-len(message)%64)%64)+struct.pack('<Q',original*8)
+    a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    def rol(v,n):return ((v<<n)|(v>>(32-n)))&0xffffffff
+    for offset in range(0,len(message),64):
+        x=struct.unpack('<16I',message[offset:offset+64]);aa,bb,cc,dd=a,b,c,d
+        for j in range(48):
+            if j<16:f=(b&c)|(~b&d);k=j;shift=[3,7,11,19][j%4];constant=0
+            elif j<32:f=(b&c)|(b&d)|(c&d);k=(j%4)*4+j//4-4;shift=[3,5,9,13][j%4];constant=0x5a827999
+            else:f=b^c^d;k=[0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15][j-32];shift=[3,9,11,15][j%4];constant=0x6ed9eba1
+            value=rol((a+f+x[k]+constant)&0xffffffff,shift);a,b,c,d=d,value,b,c
+        a=(a+aa)&0xffffffff;b=(b+bb)&0xffffffff;c=(c+cc)&0xffffffff;d=(d+dd)&0xffffffff
+    return struct.pack('<4I',a,b,c,d).hex().upper()
+def samba_hash(user):
+    p=subprocess.run(['/usr/bin/pdbedit','-Lw',user],capture_output=True,text=True,timeout=8)
+    if p.returncode:raise ValueError('Unknown NAS account')
+    for line in p.stdout.splitlines():
+        fields=line.split(':')
+        if len(fields)>4 and fields[0]==user and re.fullmatch('[A-Fa-f0-9]{32}',fields[3]):return fields[3].upper()
+    raise ValueError('NAS account has no valid Samba password')
+def valid_user(user):
+    if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
+    person=pwd.getpwnam(user)
+    if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    if samba_hash(user)=='':raise ValueError('Not a Samba user')
+    return person
+def shares_for(user):
+    entries=json.loads(DB.read_text())
+    return [s for s in entries if isinstance(s,dict) and s.get('access',{}).get(user) in ('ro','rw')]
+def drop(person):
+    os.initgroups(person.pw_name,person.pw_gid);os.setgid(person.pw_gid);os.setuid(person.pw_uid)
+def safe_path(root,relative):
+    if not isinstance(relative,str) or len(relative)>1000 or relative.startswith('/') or '\\' in relative or '\x00' in relative:raise ValueError('Invalid path')
+    parts=relative.split('/') if relative else []
+    if any(x in ('','.','..') or x.startswith('.pinas-upload-') for x in parts):raise ValueError('Invalid path')
+    # Reject symlinks at every level, including the leaf. Never follow them.
+    cur=root
+    for part in parts:
+        cur=cur/part
+        if cur.is_symlink():raise ValueError('Symbolic links are not accessible')
+    if not cur.resolve(strict=False).is_relative_to(root.resolve(strict=True)):raise ValueError('Path outside share')
+    return cur
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    raw=sys.stdin.read(5*1024*1024+1)
+    if len(raw)>5*1024*1024:raise ValueError('Request too large')
+    q=json.loads(raw);action=q.get('action');user=q.get('username');person=valid_user(user)
+    if action=='authenticate':
+        password=q.get('password')
+        if not isinstance(password,str) or len(password)>256:raise ValueError('Invalid password')
+        print('true' if hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)) else 'false');return
+    allowed=shares_for(user)
+    if action=='shares':
+        print(json.dumps({'shares':[{'name':s['name'],'read_only':s['access'][user]=='ro'} for s in allowed]}));return
+    share=q.get('share');s=next((x for x in allowed if x['name']==share),None)
+    if s is None:raise ValueError('Share not accessible')
+    # Root path derived exclusively from privileged share metadata, not browser paths.
+    root=pathlib.Path(s['volume_label']) if False else None
+    # Resolve mount from device, and confirm it is still the same mounted filesystem.
+    device=s['volume'];p=subprocess.run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],capture_output=True,text=True,timeout=5)
+    targets=p.stdout.strip().splitlines()
+    if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
+    mount=pathlib.Path(targets[0]).resolve(strict=True)
+    if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
+    root=mount/'PiNAS Shares'/s['name']
+    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    relative=q.get('path','');target=safe_path(root,relative)
+    writable=s['access'][user]=='rw'
+    if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    drop(person)
+    # All operations below run with the NAS user's UID/GID. Uploads are staged
+    # in the destination directory, then published by an atomic rename.
+    def valid_name(name):
+        if not isinstance(name,str) or not name or len(name)>255 or name in ('.','..') or '/' in name or '\\' in name or '\x00' in name or name.startswith('.pinas-upload-'):raise ValueError('Invalid file name')
+        return name
+    def destination(relative):
+        dest=safe_path(root,relative)
+        if dest==root or dest.exists() or dest.is_symlink():raise ValueError('Destination already exists')
+        if not dest.parent.is_dir():raise ValueError('Destination folder does not exist')
+        return dest
+    if action in ('rename','move','copy'):
+        if target==root or not target.exists():raise ValueError('Invalid source')
+        if action=='rename':
+            dest=destination('/'.join(filter(None,[relative.rsplit('/',1)[0] if '/' in relative else '',valid_name(q.get('name'))])))
+        else:
+            dest=destination(q.get('dest',''))
+        if target.is_dir() and (dest==target or target in dest.parents):raise ValueError('Cannot place folder inside itself')
+        if action=='copy':
+            import shutil
+            if target.is_dir():
+                # Reject links anywhere in the tree and cap total copy size.
+                total=0
+                for directory,dirs,files in os.walk(target,followlinks=False):
+                    for name in dirs+files:
+                        node=pathlib.Path(directory)/name
+                        if node.is_symlink():raise ValueError('Symbolic links cannot be copied')
+                        if node.is_file():total+=node.stat().st_size
+                        if total>8*1024**3:raise ValueError('Folder copy exceeds 8 GiB safety limit')
+                shutil.copytree(target,dest,symlinks=False)
+            elif target.is_file():
+                with target.open('rb') as src, dest.open('xb') as dst:shutil.copyfileobj(src,dst,1024*1024)
+            else:raise ValueError('Unsupported file type')
+        else:
+            # Same-share only; atomic rename prevents partial moves.
+            if target.is_file():
+                os.link(target,dest,follow_symlinks=False);target.unlink()
+            else:target.rename(dest)
+        print('{"ok":true}');return
+    if action=='upload_start':
+        name=valid_name(q.get('name'))
+        if not target.is_dir():raise ValueError('Not a folder')
+        destination('/'.join(filter(None,[relative,name])))
+        size=q.get('size')
+        if not isinstance(size,int) or size<0 or size>100*1024**3:raise ValueError('Invalid upload size')
+        import secrets
+        token=secrets.token_hex(20)
+        staging=target/('.pinas-upload-'+token)
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        os.close(fd)
+        meta=target/('.pinas-upload-'+token+'.json')
+        fd=os.open(meta,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        with os.fdopen(fd,'w') as f:json.dump({'name':name,'size':size,'path':relative},f)
+        print(json.dumps({'token':token}));return
+    if action in ('upload_chunk','upload_finish','upload_cancel'):
+        token=q.get('token','')
+        if not isinstance(token,str) or not re.fullmatch('[0-9a-f]{40}',token):raise ValueError('Invalid transfer token')
+        stage=target/('.pinas-upload-'+token)
+        meta=target/('.pinas-upload-'+token+'.json')
+        if stage.is_symlink() or meta.is_symlink() or not stage.is_file() or not meta.is_file():raise ValueError('Unknown transfer')
+        details=json.loads(meta.read_text());name=valid_name(details['name']);size=details['size']
+        if details.get('path')!=relative:raise ValueError('Transfer location mismatch')
+        if action=='upload_cancel':stage.unlink();meta.unlink();print('{"ok":true}');return
+        if action=='upload_chunk':
+            content=q.get('content','');offset=q.get('offset')
+            if not isinstance(content,str) or len(content)>700000 or not isinstance(offset,int):raise ValueError('Invalid chunk')
+            payload=base64.b64decode(content,validate=True)
+            if len(payload)>512*1024 or offset!=stage.stat().st_size or offset+len(payload)>size:raise ValueError('Chunk offset or size mismatch')
+            with stage.open('ab') as f:f.write(payload)
+            print(json.dumps({'offset':offset+len(payload)}));return
+        if stage.stat().st_size!=size:raise ValueError('Upload incomplete')
+        dest=destination('/'.join(filter(None,[relative,name])))
+        # Hard-link is no-clobber and atomic on the same filesystem.
+        os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
+        print('{"ok":true}');return
+    if action=='download_chunk':
+        offset=q.get('offset');size=q.get('size')
+        if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode):raise ValueError('Not a regular file')
+        total=target.stat().st_size
+        with target.open('rb') as f:f.seek(offset);chunk=f.read(size)
+        print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
+    if action=='list':
+        if not target.is_dir():raise ValueError('Not a folder')
+        entries=[]
+        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+            if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
+            try:st=child.stat()
+            except OSError:continue
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
+            if len(entries)>=1000:break
+        print(json.dumps({'entries':entries}));return
+    if action=='mkdir':
+        name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
+        dest.mkdir(mode=0o770);print('{"ok":true}');return
+    if action=='delete':
+        if target==root:raise ValueError('Cannot delete share root')
+        if target.is_dir():target.rmdir()
+        elif target.is_file():target.unlink()
+        else:raise ValueError('Not a regular file or empty folder')
+        print('{"ok":true}');return
+    if action=='download':
+        if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
+        with target.open('rb') as f:content=base64.b64encode(f.read()).decode()
+        print(json.dumps({'content':content}));return
+    if action=='upload':
+        name=q.get('name','');content=q.get('content','')
+        if not isinstance(name,str) or not name or '/' in name or name in ('.','..') or not isinstance(content,str) or len(content)>4*1024*1024+16:raise ValueError('Invalid upload')
+        dest=safe_path(root,'/'.join(filter(None,[relative,name])))
+        if not target.is_dir():raise ValueError('Not a directory')
+        payload=base64.b64decode(content,validate=True)
+        if len(payload)>3*1024*1024:raise ValueError('Upload exceeds 3 MB')
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o660)
+        with os.fdopen(fd,'wb') as f:f.write(payload)
+        print('{"ok":true}');return
+    raise ValueError('Unsupported action')
+if __name__=='__main__':
+    try:main()
+    except Exception as e:print(str(e),file=sys.stderr);sys.exit(1)
+"""
+
+APT_INDEX_HELPER = r"""#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+def run(cmd,timeout=30):
+    p=subprocess.run(cmd,timeout=timeout,check=False)
+    if p.returncode:sys.exit(p.returncode)
+def main():
+    if os.geteuid()!=0:sys.exit('Root access required')
+    args=sys.argv[1:]
+    if len(args)==2 and args[0]=='schedule' and args[1] in ALLOWED:
+        schedule=args[1];calendar=ALLOWED[schedule]
+        timer=Path('/etc/systemd/system/pinas-auto-updates.timer')
+        if calendar:
+            timer.write_text('[Unit]\nDescription=PiNAS automatic OS updates\n[Timer]\nOnCalendar='+calendar+'\nPersistent=true\nUnit=pinas-auto-updates.service\n[Install]\nWantedBy=timers.target\n')
+        run(['systemctl','daemon-reload'])
+        if calendar:
+            run(['systemctl','enable','--now','pinas-auto-updates.timer'])
+            run(['systemctl','restart','pinas-auto-updates.timer'])
+        else:
+            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            timer.unlink(missing_ok=True)
+            run(['systemctl','daemon-reload'])
+        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['automatic']:
+        # Only the systemd oneshot invokes this command, not the web service account.
+        run(['/usr/bin/apt-get','update'],210)
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        return
+    if args==['upgrade']:
+        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+    elif args==['refresh']:
+        run(['/usr/bin/apt-get','update'],210)
+    else:sys.exit('Unsupported operation')
+if __name__=='__main__':main()
+"""
+
+NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
+
+SMART_HEALTH_HELPER = """#!/usr/bin/env python3
+import json,os,shutil,subprocess,sys
+from pathlib import Path
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=1:
+        raise ValueError('Unsupported operation')
+    smartctl=shutil.which('smartctl')
+    if not smartctl:
+        print(json.dumps({'installed':False,'drives':[]}));return
+    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    drives=[]
+    for disk in json.loads(p.stdout).get('blockdevices',[]):
+        if disk.get('type')!='disk':continue
+        device=disk.get('path','')
+        if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
+        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
+        try:
+            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            data=json.loads(result.stdout)
+            health=data.get('smart_status',{}).get('passed')
+            if health is True:entry['status']='Healthy'
+            elif health is False:entry['status']='Warning'
+            temp=data.get('temperature',{}).get('current')
+            if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
+            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
+        except (OSError,ValueError,subprocess.TimeoutExpired):pass
+        drives.append(entry)
+    print(json.dumps({'installed':True,'drives':drives}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
+def install(args):
+    if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
+    if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
+    osinfo=read('/etc/os-release')
+    if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
+    if not args.skip_packages:
+        print('Installing NAS dependencies (requires network and may take time)...',flush=True)
+        subprocess.run(['apt-get','update'],check=True)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
+        subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
+    DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
+    subprocess.run(['chown','pinas:pinas',str(DATA)],check=True)
+    helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    helper.parent.mkdir(parents=True,exist_ok=True)
+    helper.write_text(HOSTNAME_HELPER)
+    os.chmod(helper,0o755)
+    unit='''[Unit]\nDescription=Apply validated PiNAS device hostname\nAfter=systemd-hostnamed.service\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /usr/local/libexec/pinas-apply-hostname\nNoNewPrivileges=true\nProtectHome=true\nPrivateTmp=true\n'''
+    Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
+    path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    user_helper=Path('/usr/local/libexec/pinas-nas-user')
+    user_helper.write_text(NAS_USER_HELPER)
+    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
+    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
+    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
+    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
+        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    share_helper=Path('/usr/local/libexec/pinas-nas-share')
+    share_helper.write_text(NAS_SHARE_HELPER)
+    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
+    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
+    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create\n')
+    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
+        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
+    files_helper=Path('/usr/local/libexec/pinas-nas-files')
+    files_helper.write_text(NAS_FILES_HELPER)
+    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
+    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
+    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
+    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
+        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
+    storage_helper.write_text(NAS_STORAGE_HELPER)
+    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
+    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
+    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
+    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
+        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
+    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
+    smart_helper.write_text(SMART_HEALTH_HELPER)
+    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
+    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
+    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
+        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
+    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
+    apt_helper.write_text(APT_INDEX_HELPER)
+    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
+    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
+        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
+    auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
+    os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
+    # Existing schedule is preserved when upgrading PiNAS.
+    # Generate a persistent per-install certificate; never replace it on upgrades.
+    if not TLS_CERT.exists() or not TLS_KEY.exists():
+        if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
+        if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
+        hostname=load().get('hostname','pinas')
+        if not valid_hostname(hostname):hostname='pinas'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+            '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
+            '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+    for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
+        os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
+        os.chmod(f,mode)
+    bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
+    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
+    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
+    # Replace sudo delegation with an independently sandboxed privileged service.
+    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    Path('/etc/systemd/system/pinas.service').write_text(service)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
+    if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
+    else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
+
+def main():
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    a=ap.parse_args()
+    if a.install:install(a);return
+    if a.serve:
+        if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
+        if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
+        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        if a.tls:
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
+            server.socket=context.wrap_socket(server.socket,server_side=True)
+        print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
+        threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
+    ap.print_help()
+if __name__=='__main__':main()) for x in (name,new_name)):
+                self.json({'error':'Invalid share name.'},400);return
+            if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
+                self.json({'error':'Assign at least one valid user access.'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not set(access).issubset({u['name'] for u in nas_user_list()}):
+                self.json({'error':'Unknown NAS user.'},409);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only PiNAS-managed shares can be edited.'},404);return
+            try:edit_nas_share(name,new_name,access)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'share':new_name});return
         if path=='/api/delete-share':
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
