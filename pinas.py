@@ -1155,8 +1155,8 @@ def atomic(path,content,mode=0o600):
         if os.path.exists(name):os.unlink(name)
 
 def enable_guest_mapping(config):
-    """Set Samba guest mapping in [global], retaining unrelated configuration."""
-    match=re.search(r'(?im)^\s*\[global\][ \t]*
+    """Enable guest mapping in Samba's [global] section."""
+    header=re.search(r'(?im)^[ \t]*\[global\][ \t]*
     if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
     # Device must be a block device with an approved filesystem.
     p=pathlib.Path(device)
@@ -1363,8 +1363,8 @@ if __name__=='__main__':
 """
 
 ,config)
-    if not match:raise ValueError('Samba [global] section missing')
-    next_section=re.search(r'(?m)^\s*\[[^\]\r\n]+\][ \t]*
+    if not header:raise ValueError('Samba [global] section missing')
+    next_header=re.search(r'(?m)^[ \t]*\[[^\]\r\n]+\][ \t]*
     if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
     # Device must be a block device with an approved filesystem.
     p=pathlib.Path(device)
@@ -1565,17 +1565,14 @@ if __name__=='__main__':
         print(str(exc),file=sys.stderr);sys.exit(1)
 """
 
-,config[match.end():])
-    end=match.end()+next_section.start() if next_section else len(config)
-    section=config[match.end():end]
+,config[header.end():])
+    end=header.end()+next_header.start() if next_header else len(config)
+    section=config[header.end():end]
     setting=re.compile(r'(?im)^[ \t]*map to guest[ \t]*=[^\r\n]*')
-    matches=list(setting.finditer(section))
-    if len(matches)>1:raise ValueError('Ambiguous Samba guest mapping')
-    if matches:
-        section=setting.sub('   map to guest = Bad User',section,count=1)
-    else:
-        section='\n   map to guest = Bad User\n'+section
-    return config[:match.end()]+section+config[end:]
+    if len(setting.findall(section))>1:raise ValueError('Ambiguous guest mapping')
+    if setting.search(section):section=setting.sub('   map to guest = Bad User',section,count=1)
+    else:section='\n   map to guest = Bad User\n'+section
+    return config[:header.end()]+section+config[end:]
 
 def check_volume(device):
     if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
