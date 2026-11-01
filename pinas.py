@@ -666,6 +666,7 @@ function openSettings(){
  <h3>Security</h3><p class="small">HTTPS is enabled by default. The browser may require you to trust the locally generated certificate.</p><label class="field">Session idle timeout<select id="session_timeout"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">60 minutes</option></select></label>
  <h3>Login screen</h3><label class="field">Background image (JPEG, PNG or WebP, max 2 MB)<input id="background" type="file" accept="image/jpeg,image/png,image/webp"></label>
  <button class="btn outline" id="clear">Remove background</button>
+ <h3>Administration</h3><p class="small">Reset Samba to PiNAS defaults. A dated backup is created first. NAS data and managed share definitions are preserved; custom Samba configuration may be lost.</p><button class="btn outline" id="reset-smb">Reset SMB Configuration</button>
  <h3>Update PiNAS</h3><label class="field">Select update file<input type="file" id="update-file" accept=".pinas,.zip"></label>
  <p class="small">Firmware updates will require signed packages and compatibility verification. Update installation is not yet enabled. For safety, selected files are not executed or installed in this prototype.</p>
  <div id="settings-message" role="status"></div></div>
@@ -673,6 +674,7 @@ function openSettings(){
  document.body.appendChild(overlay);
  const close=()=>{document.removeEventListener('keydown',onEscape);overlay.remove()},field=id=>overlay.querySelector('#'+id),msg=field('settings-message');
  field('settings-close').onclick=close;field('settings-cancel').onclick=close;
+ field('reset-smb').onclick=async()=>{if(!confirm('Reset Samba configuration? Custom Samba settings and unmanaged shares will be removed from the active configuration. Data files will not be deleted.'))return;const password=prompt('Enter your PiNAS administrator password to confirm SMB reset');if(password===null)return;try{const result=await post('/api/reset-smb',{confirm:'RESET SMB CONFIGURATION',admin_password:password});msg.textContent='SMB configuration reset. Backup: '+result.backup}catch(e){msg.textContent=e.message}};
  overlay.onclick=e=>{if(e.target===overlay)close()};
  const onEscape=e=>{if(e.key==='Escape')close()};
  document.addEventListener('keydown',onEscape);
@@ -817,7 +819,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -1028,6 +1030,17 @@ class Handler(BaseHTTPRequestHandler):
             DISCOVERY_AT=0
             self.json({'ok':True,'share':name});return
         if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/reset-smb':
+            password=data.get('admin_password')
+            if s.get('role')!='admin':self.json({'error':'Administrator required'},403);return
+            if data.get('confirm')!='RESET SMB CONFIGURATION':self.json({'error':'Explicit confirmation required'},400);return
+            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
+            try:
+                result=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-smb-reset','reset'],capture_output=True,text=True,timeout=45,check=True)
+                self.json(json.loads(result.stdout));return
+            except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired,ValueError) as exc:
+                self.json({'error':'SMB reset failed: '+str(exc)},503);return
         if path=='/api/settings':
             theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
             interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
@@ -1725,6 +1738,11 @@ def install(args):
         print('Installing NAS dependencies (requires network and may take time)...',flush=True)
         subprocess.run(['apt-get','update'],check=True)
         subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+    # Only initialise Samba automatically on fresh installations without PiNAS share records.
+    smb=Path('/etc/samba/smb.conf');marker=Path('/etc/samba/.pinas-managed')
+    if smb.exists() and not marker.exists() and not Path('/var/lib/pinas/shares.json').exists():
+        # Preserve existing Samba installations; the explicit reset action handles migration.
+        pass
     target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
     if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
@@ -1747,6 +1765,14 @@ def install(args):
     os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
         sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
+    reset_helper=Path('/usr/local/libexec/pinas-smb-reset')
+    reset_helper.write_text(SMB_RESET_HELPER)
+    os.chown(reset_helper,0,0);os.chmod(reset_helper,0o700)
+    reset_sudoers=Path('/etc/sudoers.d/pinas-smb-reset')
+    reset_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smb-reset reset\n')
+    os.chown(reset_sudoers,0,0);os.chmod(reset_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(reset_sudoers)],capture_output=True).returncode:
+        reset_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMB reset sudoers configuration')
     share_helper=Path('/usr/local/libexec/pinas-nas-share')
     share_helper.write_text(NAS_SHARE_HELPER)
     os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
