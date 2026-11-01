@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='0.6.0-rc16.3'
+VERSION='0.6.0-rc16.4'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -515,6 +515,20 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 
 .save-schedule-button{display:inline-flex;align-items:center;gap:9px;margin:12px 0 8px}.save-schedule-button svg{flex:none;display:block}.save-schedule-button:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}
 .updates-actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 12px}.updates-actions .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;transition:background var(--duration) var(--ease),border-color var(--duration) var(--ease),color var(--duration) var(--ease),transform var(--duration) var(--ease)}.updates-actions .btn svg{display:block;width:22px;height:22px;flex:none}.updates-actions .btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff;filter:none}.updates-actions .btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.updates-actions .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;filter:none}.updates-status-row{display:flex;align-items:center;gap:12px;min-height:32px;margin:0 0 16px}.updates-spinner{width:18px;height:18px;flex:none;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:updates-spin .8s linear infinite}.updates-spinner[hidden]{display:none!important}@keyframes updates-spin{to{transform:rotate(360deg)}}.updates-log{margin-top:16px;border:1px solid var(--line);border-radius:11px;overflow:hidden}.updates-log summary{cursor:pointer;padding:12px 14px;font-weight:600;user-select:none}.updates-log summary:hover{color:var(--accent)}.updates-log pre{white-space:pre-wrap;overflow:auto;max-height:250px;margin:0;padding:12px 14px;border-top:1px solid var(--line)}.updates-actions .btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(1)}
+/* RC16.4 shared UI consistency and accessibility pass */
+:root{--control-radius:var(--radius-sm);--control-height:42px;--dialog-gap:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--control-height);border-radius:var(--control-radius);line-height:1.25;text-align:center}
+.btn:disabled,.icon-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
+.btn.danger,.share-remove-confirm{background:#b72b3c!important;border-color:#b72b3c!important;color:#fff!important}
+.btn.danger:hover:not(:disabled),.share-remove-confirm:hover:not(:disabled){background:#992234!important;border-color:#992234!important;filter:none}
+.modal-overlay{overflow-y:auto;overscroll-behavior:contain}
+.modal-overlay>.settings-modal{margin:auto;width:min(100%,570px);max-height:calc(100dvh - 32px);min-width:0;overflow-y:auto;overscroll-behavior:contain}
+.modal-overlay .modal-heading{flex-shrink:0}
+.modal-overlay .modal-actions{flex-wrap:wrap;row-gap:10px}
+.modal-overlay .modal-actions>.btn{white-space:normal}
+.modal-overlay .field input,.modal-overlay .field select{min-width:0}
+.modal-overlay [role="status"]{overflow-wrap:anywhere}
+@media(max-width:560px){.modal-overlay>.settings-modal{max-height:calc(100dvh - 16px);padding:16px}.modal-overlay .modal-actions>.btn{flex:1 1 auto}}
 </style></head><body><div id="app"></div><script>
 const app=document.getElementById('app');let info={},cfg={},cpu={},page='Overview',csrf='',role='admin',username='',displayName='',refreshTimer=null,lastNavRect=null;const nav=['Overview','Storage','Users','Shares','Applications'];
 // Navigation is derived from actual mounted NAS volumes, not a setup flag.
@@ -675,7 +689,7 @@ function openSettings(){
  document.body.appendChild(overlay);
  const close=()=>{document.removeEventListener('keydown',onEscape);overlay.remove()},field=id=>overlay.querySelector('#'+id),msg=field('settings-message');
  field('settings-close').onclick=close;field('settings-cancel').onclick=close;
- field('reset-smb').onclick=()=>{const panel=document.createElement('div');panel.className='modal-overlay';panel.innerHTML='<section class="card settings-modal" role="dialog" aria-modal="true" aria-label="Confirm SMB reset" style="padding:24px"><h2>Reset SMB Configuration</h2><p class="hint">Reset Samba configuration? Custom Samba settings and unmanaged shares will be removed from the active configuration. Data files will not be deleted.</p><label class="field">Administrator password<input type="password" id="smb-reset-password" autocomplete="current-password"></label><p id="smb-reset-error" role="status"></p><div class="modal-actions"><button class="btn outline" id="smb-reset-cancel">Cancel</button><button class="btn" id="smb-reset-confirm">Reset configuration</button></div></section>';document.body.appendChild(panel);const cancel=()=>panel.remove();panel.querySelector('#smb-reset-cancel').onclick=cancel;panel.querySelector('#smb-reset-confirm').onclick=async()=>{const btn=panel.querySelector('#smb-reset-confirm');btn.disabled=true;try{const result=await post('/api/reset-smb',{confirm:'RESET SMB CONFIGURATION',admin_password:panel.querySelector('#smb-reset-password').value});msg.textContent='SMB configuration reset. Backup: '+result.backup;cancel()}catch(e){panel.querySelector('#smb-reset-error').textContent=e.message;btn.disabled=false}};panel.querySelector('#smb-reset-password').focus()};
+ field('reset-smb').onclick=()=>{const panel=document.createElement('div');panel.className='modal-overlay';panel.innerHTML='<section class="card settings-modal" role="dialog" aria-modal="true" aria-label="Confirm SMB reset" tabindex="-1"><h2>Reset SMB Configuration</h2><p class="hint">Reset Samba configuration? Custom Samba settings and unmanaged shares will be removed from the active configuration. Data files will not be deleted.</p><label class="field">Administrator password<input type="password" id="smb-reset-password" autocomplete="current-password"></label><p id="smb-reset-error" role="status"></p><div class="modal-actions"><button class="btn outline" id="smb-reset-cancel">Cancel</button><button class="btn" id="smb-reset-confirm">Reset configuration</button></div></section>';document.body.appendChild(panel);const cancel=()=>panel.remove();panel.querySelector('#smb-reset-cancel').onclick=cancel;panel.onclick=e=>{if(e.target===panel)cancel()};panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();cancel()}});panel.querySelector('#smb-reset-confirm').onclick=async()=>{const btn=panel.querySelector('#smb-reset-confirm');btn.disabled=true;try{const result=await post('/api/reset-smb',{confirm:'RESET SMB CONFIGURATION',admin_password:panel.querySelector('#smb-reset-password').value});msg.textContent='SMB configuration reset. Backup: '+result.backup;cancel()}catch(e){panel.querySelector('#smb-reset-error').textContent=e.message;btn.disabled=false}};panel.querySelector('#smb-reset-password').focus()};
  overlay.onclick=e=>{if(e.target===overlay)close()};
  const onEscape=e=>{if(e.key==='Escape')close()};
  document.addEventListener('keydown',onEscape);
