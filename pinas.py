@@ -1455,7 +1455,7 @@ def install(args):
     smart_helper.write_text(SMART_HEALTH_HELPER)
     os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
     smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
-    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\\n'.replace('\\n','\n'))
+    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
     os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
         smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
