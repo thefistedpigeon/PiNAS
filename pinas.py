@@ -1155,7 +1155,6 @@ def atomic(path,content,mode=0o600):
         if os.path.exists(name):os.unlink(name)
 
 def enable_guest_mapping(config):
-    """Enable guest mapping in Samba's [global] section."""
     header=re.search(r'(?im)^[ \t]*\[global\][ \t]*
     if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
     # Device must be a block device with an approved filesystem.
@@ -1229,7 +1228,7 @@ def main():
         rw=[u for u,p in access.items() if p=='rw']
         stanza='['+new_name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
         if public:
-            stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
+            stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
         else:
             stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
             if rw:stanza+='   write list = '+', '.join(rw)+'\n'
@@ -1325,7 +1324,7 @@ def main():
     ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
     stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
     if public:
-        stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
+        stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
     else:
         stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
         if rw:stanza+='   write list = '+', '.join(rw)+'\n'
@@ -1435,7 +1434,7 @@ def main():
         rw=[u for u,p in access.items() if p=='rw']
         stanza='['+new_name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
         if public:
-            stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
+            stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
         else:
             stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
             if rw:stanza+='   write list = '+', '.join(rw)+'\n'
@@ -1528,7 +1527,7 @@ def main():
     ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
     stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
     if public:
-        stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
+        stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
     else:
         stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
         if rw:stanza+='   write list = '+', '.join(rw)+'\n'
@@ -1645,7 +1644,7 @@ def main():
         rw=[u for u,p in access.items() if p=='rw']
         stanza='['+new_name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
         if public:
-            stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
+            stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
         else:
             stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
             if rw:stanza+='   write list = '+', '.join(rw)+'\n'
@@ -1738,7 +1737,7 @@ def main():
     ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
     stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
     if public:
-        stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
+        stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
     else:
         stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
         if rw:stanza+='   write list = '+', '.join(rw)+'\n'
