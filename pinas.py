@@ -1154,6 +1154,24 @@ def atomic(path,content,mode=0o600):
     finally:
         if os.path.exists(name):os.unlink(name)
 
+def guest_mapping(config):
+    lines=config.splitlines(keepends=True)
+    inside=False;seen=False;found=False
+    for i,line in enumerate(lines):
+        stripped=line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            inside=stripped.lower()=='[global]'
+            if inside:found=True
+        elif inside and re.match(r'^map\s+to\s+guest\s*=',stripped,re.I):
+            if seen:raise ValueError('Duplicate Samba guest mapping')
+            lines[i]='   map to guest = Bad User\n';seen=True
+    if not found:raise ValueError('Samba [global] section missing')
+    if not seen:
+        for i,line in enumerate(lines):
+            if line.strip().lower()=='[global]':
+                lines.insert(i+1,'   map to guest = Bad User\n');break
+    return ''.join(lines)
+
 def check_volume(device):
     if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:raise ValueError('Invalid device')
     # Device must be a block device with an approved filesystem.
@@ -1216,6 +1234,8 @@ def main():
         folder=pathlib.Path(item.get('folder') or str(mount/'PiNAS Shares'/name))
         if folder.parent!=mount/'PiNAS Shares' or folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:raise ValueError('Unsafe managed share folder')
         oldconf=CONF.read_text()
+        old_smb=SMB.read_text()
+        new_smb=guest_mapping(old_smb) if public else old_smb
         section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
         found=list(section.finditer(oldconf))
         if len(found)!=1:raise ValueError('Managed share section missing or ambiguous')
@@ -1238,6 +1258,7 @@ def main():
             run(['/usr/bin/setfacl','-b',str(folder)])
             run(['/usr/bin/setfacl','-k',str(folder)])
             run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
+            if new_smb!=old_smb:atomic(SMB,new_smb,0o644)
             atomic(CONF,newconf,0o644)
             run(['/usr/bin/testparm','-s'])
             run(['/usr/bin/systemctl','reload','smbd'])
@@ -1245,6 +1266,7 @@ def main():
             atomic(DB,json.dumps(current,indent=2),0o600)
         except Exception:
             atomic(CONF,oldconf,0o644)
+            if new_smb!=old_smb:atomic(SMB,old_smb,0o644)
             atomic(DB,olddb,0o600)
             try:subprocess.run(['/usr/bin/setfacl','--restore=-'],input=oldacl,text=True,capture_output=True,timeout=15,check=True)
             except Exception:pass
@@ -1314,6 +1336,7 @@ def main():
         if not re.search(r'(?im)^\s*\[global\]\s*$',original):raise ValueError('Samba [global] section missing')
         amended=re.sub(r'(?im)^(\s*\[global\]\s*)$',r'\1\n'+include,original,count=1)
     else:amended=original
+    if public:amended=guest_mapping(amended)
     # Explicit per-user access; default deny for other NAS accounts.
     ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
     stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
