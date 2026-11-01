@@ -209,16 +209,16 @@ def nas_share_list():
     except (OSError,ValueError,subprocess.TimeoutExpired):pass
     return []
 
-def create_nas_share(name,volume,access):
-    payload=json.dumps({'name':name,'volume':volume,'access':access})
+def create_nas_share(name,volume,access,public=False,public_write=False):
+    payload=json.dumps({'name':name,'volume':volume,'access':access,'public':public,'public_write':public_write})
     proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','create'],
         input=payload,text=True,capture_output=True,timeout=35,check=False)
     if proc.returncode:
         raise RuntimeError('Share creation failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
 
-def edit_nas_share(name,new_name,access):
+def edit_nas_share(name,new_name,access,public=False,public_write=False):
     proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','edit'],
-        input=json.dumps({'name':name,'new_name':new_name,'access':access}),
+        input=json.dumps({'name':name,'new_name':new_name,'access':access,'public':public,'public_write':public_write}),
         text=True,capture_output=True,timeout=35,check=False)
     if proc.returncode:
         raise RuntimeError('Share edit failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
@@ -969,10 +969,11 @@ class Handler(BaseHTTPRequestHandler):
             DISCOVERY_AT=0
             self.json(result);return
         if path=='/api/edit-share':
-            name=data.get('name');new_name=data.get('new_name');access=data.get('access');password=data.get('admin_password')
+            name=data.get('name');new_name=data.get('new_name');access=data.get('access');password=data.get('admin_password');public=data.get('public',False);public_write=data.get('public_write',False)
             if not all(isinstance(x,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',x) for x in (name,new_name)):
                 self.json({'error':'Invalid share name.'},400);return
-            if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
+            if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):self.json({'error':'Invalid public sharing policy.'},400);return
+            if not isinstance(access,dict) or (not public and not 1<=len(access)<=64) or (public and access!={}) or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
                 self.json({'error':'Assign at least one valid user access.'},400);return
             if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
@@ -980,7 +981,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Unknown NAS user.'},409);return
             if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
                 self.json({'error':'Only PiNAS-managed shares can be edited.'},404);return
-            try:edit_nas_share(name,new_name,access)
+            try:edit_nas_share(name,new_name,access,public,public_write)
             except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json({'ok':True,'share':new_name});return
@@ -997,12 +998,13 @@ class Handler(BaseHTTPRequestHandler):
             DISCOVERY_AT=0
             self.json({'ok':True,'share':name,'files_preserved':True});return
         if path=='/api/nas-shares':
-            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password')
+            name=data.get('name');volume=data.get('volume');access=data.get('access');admin_password=data.get('admin_password');public=data.get('public',False);public_write=data.get('public_write',False)
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):
                 self.json({'error':'Choose a share name of 1–32 letters, digits, spaces, underscores or hyphens.'},400);return
             if not isinstance(volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',volume) or '..' in volume:
                 self.json({'error':'Invalid storage selection.'},400);return
-            if not isinstance(access,dict) or not access or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
+            if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):self.json({'error':'Invalid public sharing policy.'},400);return
+            if not isinstance(access,dict) or (not public and not access) or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
                 self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
             if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
@@ -1011,7 +1013,7 @@ class Handler(BaseHTTPRequestHandler):
             if not set(access).issubset(valid_users):self.json({'error':'One or more users are not valid Samba accounts.'},409);return
             if any(name.casefold()==s.casefold() for s in discover().get('shares',[])):
                 self.json({'error':'A share with this name already exists.'},409);return
-            try:create_nas_share(name,volume,access)
+            try:create_nas_share(name,volume,access,public,public_write)
             except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json({'ok':True,'share':name});return
@@ -1186,10 +1188,11 @@ def main():
         raw=sys.stdin.read(8193)
         if len(raw)>8192:raise ValueError('Request too large')
         request=json.loads(raw)
-        name=request.get('name');new_name=request.get('new_name');access=request.get('access')
+        name=request.get('name');new_name=request.get('new_name');access=request.get('access');public=request.get('public',False);public_write=request.get('public_write',False)
         valid=lambda n:isinstance(n,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',n)
         if not valid(name) or not valid(new_name):raise ValueError('Invalid share name')
-        if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid permissions')
+        if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):raise ValueError('Invalid public policy')
+        if not isinstance(access,dict) or (not public and not 1<=len(access)<=64) or len(access)>64 or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid permissions')
         current=read_db()
         matches=[i for i in current if isinstance(i,dict) and i.get('name')==name]
         if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
@@ -1210,13 +1213,17 @@ def main():
             existing=run(['/usr/bin/testparm','-s']).stdout
             if any(line.strip().casefold()=='['+new_name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
         rw=[u for u,p in access.items() if p=='rw']
-        stanza='['+new_name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
-        if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+        stanza='['+new_name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
+        if public:
+            stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
+        else:
+            stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
+            if rw:stanza+='   write list = '+', '.join(rw)+'\n'
         stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
         newconf=oldconf[:found[0].start()]+stanza+oldconf[found[0].end():]
         olddb=DB.read_text()
         oldacl=run(['/usr/bin/getfacl','-p',str(folder)]).stdout
-        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        acl=['u::rwx','g::---','o::---','m::rwx']+(['u:nobody:'+('rwx' if public_write else 'r-x')] if public else [f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()])
         try:
             run(['/usr/bin/setfacl','-b',str(folder)])
             run(['/usr/bin/setfacl','-k',str(folder)])
@@ -1224,7 +1231,7 @@ def main():
             atomic(CONF,newconf,0o644)
             run(['/usr/bin/testparm','-s'])
             run(['/usr/bin/systemctl','reload','smbd'])
-            item['name']=new_name;item['access']=access;item['folder']=str(folder)
+            item['name']=new_name;item['access']=access;item['folder']=str(folder);item['public']=public;item['public_write']=public_write
             atomic(DB,json.dumps(current,indent=2),0o600)
         except Exception:
             atomic(CONF,oldconf,0o644)
@@ -1267,9 +1274,10 @@ def main():
     raw=sys.stdin.read(8193)
     if len(raw)>8192:raise ValueError('Request too large')
     request=json.loads(raw)
-    name=request.get('name');access=request.get('access');device=request.get('volume')
+    name=request.get('name');access=request.get('access');device=request.get('volume');public=request.get('public',False);public_write=request.get('public_write',False)
     if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name) or name.lower() in ('global','homes','printers','print$','ipc$'):raise ValueError('Invalid share name')
-    if not isinstance(access,dict) or not 1<=len(access)<=64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
+    if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):raise ValueError('Invalid public policy')
+    if not isinstance(access,dict) or (not public and not 1<=len(access)<=64) or len(access)>64 or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):raise ValueError('Invalid access policy')
     # Verify users exist in Samba and Linux before creating any directory.
     samba={line.split(':',1)[0] for line in run(['/usr/bin/pdbedit','-L']).stdout.splitlines()}
     for user in access:
@@ -1298,8 +1306,12 @@ def main():
     else:amended=original
     # Explicit per-user access; default deny for other NAS accounts.
     ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
-    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   guest ok = no\n   read only = yes\n   valid users = '+', '.join(access)+'\n'
-    if rw:stanza+='   write list = '+', '.join(rw)+'\n'
+    stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
+    if public:
+        stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
+    else:
+        stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
+        if rw:stanza+='   write list = '+', '.join(rw)+'\n'
     stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
     oldconf=CONF.read_text() if CONF.exists() else ''
     if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
@@ -1308,14 +1320,14 @@ def main():
         # Root-owned folder; Samba creates files as authenticated Unix users.
         os.chown(folder,0,0)
         os.chmod(folder,0o700)
-        acl=['u::rwx','g::---','o::---','m::rwx']+[f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()]
+        acl=['u::rwx','g::---','o::---','m::rwx']+(['u:nobody:'+('rwx' if public_write else 'r-x')] if public else [f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()])
         default=['d:'+entry for entry in acl]
         run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
         if amended!=original:atomic(SMB,amended,0o644)
         atomic(CONF,oldconf+stanza,0o644)
         run(['/usr/bin/testparm','-s'])
         run(['/usr/bin/systemctl','reload','smbd'])
-        current.append({'name':name,'volume_label':mount.name,'volume':device,'folder':str(folder),'access':access})
+        current.append({'name':name,'volume_label':mount.name,'volume':device,'folder':str(folder),'access':access,'public':public,'public_write':public_write})
         atomic(DB,json.dumps(current,indent=2),0o600)
     except Exception:
         atomic(CONF,oldconf,0o644)
