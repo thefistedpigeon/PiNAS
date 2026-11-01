@@ -1738,11 +1738,8 @@ def install(args):
         print('Installing NAS dependencies (requires network and may take time)...',flush=True)
         subprocess.run(['apt-get','update'],check=True)
         subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
-    # Only initialise Samba automatically on fresh installations without PiNAS share records.
-    smb=Path('/etc/samba/smb.conf');marker=Path('/etc/samba/.pinas-managed')
-    if smb.exists() and not marker.exists() and not Path('/var/lib/pinas/shares.json').exists():
-        # Preserve existing Samba installations; the explicit reset action handles migration.
-        pass
+    # Only take ownership of Samba automatically on a genuinely new PiNAS installation.
+    first_install=not Path('/opt/pinas/pinas.py').exists()
     target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
     if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
@@ -1773,6 +1770,8 @@ def install(args):
     os.chown(reset_sudoers,0,0);os.chmod(reset_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(reset_sudoers)],capture_output=True).returncode:
         reset_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMB reset sudoers configuration')
+    if first_install and Path('/etc/samba/smb.conf').is_file():
+        subprocess.run(['/usr/bin/python3',str(reset_helper),'reset'],check=True,timeout=45)
     share_helper=Path('/usr/local/libexec/pinas-nas-share')
     share_helper.write_text(NAS_SHARE_HELPER)
     os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
