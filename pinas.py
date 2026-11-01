@@ -1225,7 +1225,7 @@ def main():
         rw=[u for u,p in access.items() if p=='rw']
         stanza='['+new_name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
         if public:
-            stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
+            stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
         else:
             stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
             if rw:stanza+='   write list = '+', '.join(rw)+'\n'
@@ -1318,7 +1318,7 @@ def main():
     ro=[u for u,p in access.items() if p=='ro'];rw=[u for u,p in access.items() if p=='rw']
     stanza='\n['+name+']\n   path = '+str(folder)+'\n   browseable = yes\n   read only = '+('no' if public and public_write else 'yes')+'\n'
     if public:
-        stanza+='   guest ok = yes\n   guest only = yes\n   guest account = nobody\n   force user = nobody\n'
+        stanza+='   guest ok = yes\n   guest only = yes\n   force user = nobody\n'
     else:
         stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
         if rw:stanza+='   write list = '+', '.join(rw)+'\n'
