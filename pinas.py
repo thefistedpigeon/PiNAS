@@ -1783,8 +1783,10 @@ def install(args):
     if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
     if not args.skip_packages:
         print('Installing NAS dependencies (requires network and may take time)...',flush=True)
-        subprocess.run(['apt-get','update'],check=True)
-        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+        apt_env=os.environ.copy()
+        apt_env.update({'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','DEBIAN_FRONTEND':'noninteractive','DEBIAN_PRIORITY':'critical'})
+        subprocess.run(['apt-get','update'],check=True,env=apt_env)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True,env=apt_env)
     # Only take ownership of Samba automatically on a genuinely new PiNAS installation.
     first_install=not Path('/opt/pinas/pinas.py').exists()
     target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
