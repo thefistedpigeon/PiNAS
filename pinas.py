@@ -1835,7 +1835,7 @@ def run(args,timeout=25,check=True):
 
 def installed():
     p=run(['/usr/bin/dpkg-query','-W','minidlna'],check=False)
-    return p.returncode==0
+    return p.returncode==0 and 'minidlna' in p.stdout
 
 def service_state():
     def state(arg):
@@ -1930,13 +1930,15 @@ def configure(data):
     try:
         atomic(CONF,'\n'.join(lines))
         atomic(STATE,json.dumps(settings,indent=2),0o600)
-        run(['/usr/bin/systemctl','restart',SERVICE],timeout=45)
+        if service_state()['active']:
+            run(['/usr/bin/systemctl','restart',SERVICE],timeout=45)
     except Exception:
         if previous is None:CONF.unlink(missing_ok=True)
         else:atomic(CONF,previous)
         if oldstate is None:STATE.unlink(missing_ok=True)
         else:atomic(STATE,oldstate,0o600)
-        try:run(['/usr/bin/systemctl','restart',SERVICE],timeout=45,check=False)
+        try:
+            if service_state()['active']:run(['/usr/bin/systemctl','restart',SERVICE],timeout=45,check=False)
         except Exception:pass
         raise
     return status()
@@ -1950,8 +1952,10 @@ def main():
     if len(raw)>8192:raise ValueError('Request too large')
     request=json.loads(raw);action=request.get('action')
     if action=='install':
-        if not installed():run(['/usr/bin/apt-get','install','-y','minidlna'],timeout=240)
-        run(['/usr/bin/systemctl','disable','--now',SERVICE],timeout=40,check=False)
+        if not installed():
+            run(['/usr/bin/apt-get','install','-y','minidlna'],timeout=240)
+            # Keep a newly installed service stopped until configured.
+            run(['/usr/bin/systemctl','disable','--now',SERVICE],timeout=40,check=False)
     elif action=='configure':
         print(json.dumps(configure(request.get('settings'))));return
     elif action in ('start','stop','restart'):
