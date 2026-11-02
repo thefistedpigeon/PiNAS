@@ -88,6 +88,8 @@ def main():
             shutil.copy2(BASE,BACKUP)
             target.write_bytes(data);os.chmod(target,0o755)
             os.replace(target,BASE)
+            extracted=subprocess.run(['/usr/bin/python3',str(BASE),'--extract-modules'],capture_output=True,text=True,timeout=30)
+            if extracted.returncode:raise ValueError('Module extraction failed: '+extracted.stderr[-500:])
             result=subprocess.run(['/usr/bin/systemctl','restart','pinas.service'],capture_output=True,text=True,timeout=35)
             if result.returncode:raise ValueError('PiNAS restart failed: '+result.stderr[-500:])
             time.sleep(2)
