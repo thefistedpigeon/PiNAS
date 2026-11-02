@@ -31,7 +31,9 @@ def build():
     ast.parse(out,filename='pinas.py')
     output=ROOT/'pinas.py'
     if '--check' in sys.argv:
-        if output.read_text(encoding='utf-8')!=out:raise SystemExit('pinas.py is out of date; rebuild the release')
+        existing=ast.parse(output.read_text(encoding='utf-8'),filename='pinas.py')
+        bundled=next((ast.literal_eval(node.value) for node in existing.body if isinstance(node,ast.Assign) and any(isinstance(x,ast.Name) and x.id=='PINAS_SOURCE_PARTS' for x in node.targets)),None)
+        if bundled!=parts:raise SystemExit('pinas.py bundle differs from source modules; rebuild the release')
         print('Release bundle matches source modules')
     else:
         output.write_text(out,encoding='utf-8')
