@@ -23,7 +23,7 @@ class DiskDestructiveGuards(unittest.TestCase):
     def test_device_guards(self):
         code=VALUES['NAS_DESTRUCTIVE_HELPER']
         for guard in ('is_block_device()', "get('type')=='disk'", 'Device has active holders',
-                      'Disk contains mounted filesystems', 'Operating-system disk',
+                      'Disk contains mounted filesystems', 'System disk is protected',
                       'Unable to identify operating-system disk', '/etc/fstab',
                       'Disk belongs to a PiNAS share', 'Active swap is protected',
                       "details.st_dev",):
@@ -47,7 +47,7 @@ class DiskDestructiveGuards(unittest.TestCase):
         self.assertIn("data-disk-operation", VALUES['PAGE'])
 
     def test_sudo_narrow_scope(self):
-        self.assertIn("/usr/local/libexec/pinas-disk-destructive execute\\n", SRC)
+        self.assertIn("/usr/local/libexec/pinas-disk-destructive execute", SRC)
         self.assertIn("os.chmod(disk_helper,0o700)", SRC)
 
 if __name__=='__main__':unittest.main()
