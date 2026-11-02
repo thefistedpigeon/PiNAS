@@ -819,7 +819,9 @@ class Handler(BaseHTTPRequestHandler):
             _,session=self.session()
             if not session or session.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             try:
-                state=json.loads((DATA/'pinas-upgrade-status.json').read_text())
+                p=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-upgrader','status'],capture_output=True,text=True,timeout=8)
+                if p.returncode:raise OSError('Unable to read update status')
+                state=json.loads(p.stdout)
                 self.json({'state':state.get('state','unknown'),'message':state.get('message','')});return
             except (OSError,ValueError):
                 self.json({'state':'idle','message':'No PiNAS upgrade has been scheduled.'});return
@@ -1820,13 +1822,14 @@ NAS_UPDATER_HELPER = r"""#!/usr/bin/env python3
 # Restricted privileged PiNAS updater: accepts package bytes only through stdin.
 import ast,hashlib,json,os,pathlib,re,shutil,subprocess,sys,time
 BASE=pathlib.Path('/opt/pinas/pinas.py')
-ROOT=pathlib.Path('/var/lib/pinas')
-STAGE=ROOT/'pinas-upgrade-staged.py'
-STATUS=ROOT/'pinas-upgrade-status.json'
+ROOT=pathlib.Path('/var/lib/pinas-upgrader')
+STAGE=ROOT/'staged.py'
+STATUS=ROOT/'status.json'
 BACKUP=pathlib.Path('/opt/pinas/pinas.py.previous')
 MAX=2*1024*1024
 def status(state,message):
-    tmp=ROOT/'pinas-upgrade-status.tmp'
+    ROOT.mkdir(mode=0o700,parents=True,exist_ok=True)
+    tmp=ROOT/'status.tmp'
     tmp.write_text(json.dumps({'state':state,'message':message,'at':time.time()}))
     os.chmod(tmp,0o644);os.replace(tmp,STATUS)
 def validate(data):
@@ -1842,7 +1845,10 @@ def validate(data):
     return versions[0]
 def main():
     if os.geteuid()!=0:raise ValueError('Root required')
+    if sys.argv[1:]==['status']:
+        print(STATUS.read_text() if STATUS.exists() else json.dumps({'state':'idle','message':'No PiNAS update scheduled'}));return
     if sys.argv[1:]==['apply']:
+        ROOT.mkdir(mode=0o700,parents=True,exist_ok=True)
         data=sys.stdin.buffer.read(MAX+1)
         version=validate(data)
         if STAGE.exists():raise ValueError('Another update is already staged')
@@ -1950,7 +1956,7 @@ def install(args):
     updater_helper.write_text(NAS_UPDATER_HELPER)
     os.chown(updater_helper,0,0);os.chmod(updater_helper,0o700)
     updater_sudoers=Path('/etc/sudoers.d/pinas-upgrader')
-    updater_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-upgrader apply\\n')
+    updater_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-upgrader apply, /usr/local/libexec/pinas-upgrader status\n')
     os.chown(updater_sudoers,0,0);os.chmod(updater_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(updater_sudoers)],capture_output=True).returncode:
         updater_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS updater sudoers configuration')
