@@ -237,6 +237,14 @@ def configure_nas_mount(device):
         raise RuntimeError((proc.stderr.strip() or 'Storage configuration failed')[-800:])
     return json.loads(proc.stdout)
 
+def destructive_disk_action(action,device,fs):
+    request={'action':action,'device':device,'fs':fs,'confirmation':device}
+    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-disk-destructive','execute'],
+        input=json.dumps(request),capture_output=True,text=True,timeout=320,check=False)
+    if proc.returncode:
+        raise RuntimeError((proc.stderr.strip() or 'Disk operation failed')[-700:])
+    return json.loads(proc.stdout)
+
 def nas_file_action(action, username, share='', path='', **extra):
     payload={'action':action,'username':username,'share':share,'path':path,**extra}
     proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-files'],input=json.dumps(payload),
@@ -837,7 +845,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/disk-destructive','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -987,6 +995,22 @@ class Handler(BaseHTTPRequestHandler):
             global DISCOVERY_AT
             DISCOVERY_AT=0
             self.json({'ok':True,'username':username,'display_name':display_name});return
+        if path=='/api/disk-destructive':
+            if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            device=data.get('device');action=data.get('action');fs=data.get('fs')
+            password=data.get('admin_password');confirmation=data.get('confirmation')
+            if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_.-]{1,70}',device):
+                self.json({'error':'Invalid physical disk'},400);return
+            if action not in ('wipe','format') or (action=='format' and fs not in ('ext4','xfs','btrfs')):
+                self.json({'error':'Invalid disk operation'},400);return
+            if confirmation!=device:self.json({'error':'Type the exact device path to confirm'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Current administrator password is incorrect'},403);return
+            try:result=destructive_disk_action(action,device,fs)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:
+                self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json(result);return
         if path=='/api/storage':
             if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             device=data.get('device');password=data.get('admin_password')
@@ -1966,6 +1990,14 @@ def install(args):
     os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
         files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    disk_helper=Path('/usr/local/libexec/pinas-disk-destructive')
+    disk_helper.write_text(NAS_DESTRUCTIVE_HELPER)
+    os.chown(disk_helper,0,0);os.chmod(disk_helper,0o700)
+    disk_sudoers=Path('/etc/sudoers.d/pinas-disk-destructive')
+    disk_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-disk-destructive execute\n')
+    os.chown(disk_sudoers,0,0);os.chmod(disk_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(disk_sudoers)],capture_output=True).returncode:
+        disk_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS disk sudoers configuration')
     storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
     storage_helper.write_text(NAS_STORAGE_HELPER)
     os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
