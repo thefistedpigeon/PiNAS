@@ -682,8 +682,7 @@ function openSettings(){
  <h3>Login screen</h3><label class="field">Background image (JPEG, PNG or WebP, max 2 MB)<input id="background" type="file" accept="image/jpeg,image/png,image/webp"></label>
  <button class="btn outline" id="clear">Remove background</button>
  <h3>Administration</h3><p class="small">Reset Samba to PiNAS defaults. A dated backup is created first. NAS data and managed share definitions are preserved; custom Samba configuration may be lost.</p><button class="btn outline" id="reset-smb">Reset SMB Configuration</button>
- <h3>Update PiNAS</h3><label class="field">Select update file<input type="file" id="update-file" accept=".pinas,.zip"></label>
- <p class="small">Firmware updates will require signed packages and compatibility verification. Update installation is not yet enabled. For safety, selected files are not executed or installed in this prototype.</p>
+ <h3>Update PiNAS</h3><p class="small">Upload an official PiNAS Python release file (.py). The same file can also be installed from the command line. This operation replaces application code, not your NAS configuration or shared files. Only install releases from sources you trust.</p><label class="field">PiNAS update package<input type="file" id="update-file" accept=".py,text/x-python"></label><button class="btn outline" id="apply-pinas-update" type="button">Install selected update</button><p class="small" id="pinas-update-status" role="status"></p>
  <div id="settings-message" role="status"></div></div>
  <div class="modal-actions"><button class="btn outline" id="settings-cancel">Cancel</button><button class="btn" id="save">Save settings</button></div></section>`;
  document.body.appendChild(overlay);
@@ -701,7 +700,23 @@ function openSettings(){
  field('save').onclick=async()=>{try{let j=await post('/api/settings',{theme:field('theme').value,accent:field('accent').value,font:Number(field('font').value),cpu_interval:Number(field('cpu_interval').value),cpu_history:Number(field('cpu_history').value),session_timeout:Number(field('session_timeout').value)});cfg=j.settings;apply();render();close()}catch(e){msg.textContent=e.message}};
  field('clear').onclick=async()=>{try{let j=await post('/api/background',{image:''});cfg=j.settings;apply();msg.textContent='Background removed'}catch(e){msg.textContent=e.message}};
  field('background').onchange=e=>{let f=e.target.files[0];if(!f)return;if(f.size>2*1024*1024){msg.textContent='Maximum image size is 2 MB';return}let reader=new FileReader();reader.onload=async()=>{try{let j=await post('/api/background',{image:reader.result});cfg=j.settings;apply();msg.textContent='Background updated'}catch(err){msg.textContent=err.message}};reader.readAsDataURL(f)};
- field('update-file').onchange=e=>{let f=e.target.files[0];msg.textContent=f?`Selected ${f.name}. Automatic update installation is not available in this prototype.`:''};
+ field('update-file').onchange=e=>{const f=e.target.files[0];msg.textContent=f?'Selected '+f.name+' ('+Math.round(f.size/1024)+' KiB)':''};
+ field('apply-pinas-update').onclick=async()=>{
+   const f=field('update-file').files[0];if(!f){msg.textContent='Choose a PiNAS .py release first';return}
+   if(!f.name.endsWith('.py')||f.size>2*1024*1024){msg.textContent='Only Python release files up to 2 MB are supported';return}
+   const pw=await fileTextDialog({title:'Authorise PiNAS update',label:'Administrator password',description:'Replace the PiNAS application and restart its service. Current sessions will be disconnected.',confirmLabel:'Install update',password:true});
+   if(pw===null)return;
+   const button=field('apply-pinas-update');button.disabled=true;msg.textContent='Validating and scheduling update…';
+   try{
+     const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Cannot read file'));reader.readAsDataURL(f)});
+     const hashBuffer=await crypto.subtle.digest('SHA-256',await f.arrayBuffer());
+     const sha256=Array.from(new Uint8Array(hashBuffer),v=>v.toString(16).padStart(2,'0')).join('');
+     await post('/api/pinas-upgrade',{admin_password:pw,filename:f.name,sha256,package_b64:data});
+     msg.textContent='Update accepted. PiNAS will restart automatically. Reconnect after the service returns.';
+     const status=field('pinas-update-status');let checks=0;
+     const timer=setInterval(async()=>{if(!document.body.contains(overlay)||checks++>40){clearInterval(timer);return}try{const response=await fetch('/api/pinas-upgrade',{cache:'no-store'});if(!response.ok)return;const update=await response.json();status.textContent=update.message||update.state;if(['succeeded','rolled_back','failed'].includes(update.state)){clearInterval(timer);button.disabled=false}}catch(e){}},3000);
+   }catch(e){msg.textContent=e.message;button.disabled=false}
+ };
  overlay.querySelector('.settings-modal').focus();
 }
 const FILE_ICONS={folder:'<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',file:'<path d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v6h6"/>',up:'<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="m9 14 3-3 3 3m-3-3v7"/>',plus:'<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M12 11v7m-3.5-3.5h7"/>',upload:'<path d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v6h6m-8 11v-8m-3 3 3-3 3 3"/>',refresh:'<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M8 15a4 4 0 0 1 7-2m0-3v3h-3m4 3a4 4 0 0 1-7 2m0 3v-3h3"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M19 13.5a2 2 0 0 0 0-3l1-2-3-3-2 1a2 2 0 0 0-3-1l-1-2H9l-1 2a2 2 0 0 0-3 1l-2-1-2 3 1 2a2 2 0 0 0 0 3l-1 2 3 3 2-1a2 2 0 0 0 3 1l1 2h3l1-2a2 2 0 0 0 3-1l2 1 2-3Z"/>'};
@@ -800,6 +815,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE.encode());return
+        if path=='/api/pinas-upgrade':
+            _,session=self.session()
+            if not session or session.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            try:
+                state=json.loads((DATA/'pinas-upgrade-status.json').read_text())
+                self.json({'state':state.get('state','unknown'),'message':state.get('message','')});return
+            except (OSError,ValueError):
+                self.json({'state':'idle','message':'No PiNAS upgrade has been scheduled.'});return
         if path=='/api/background-image':
             cfg=load();image=cfg.get('login_background','')
             if not image:self.json({'error':'Not found'},404);return
@@ -837,7 +860,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -1059,6 +1082,23 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(json.loads(result.stdout));return
             except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired,ValueError) as exc:
                 self.json({'error':'SMB reset failed: '+str(exc)},503);return
+        if path=='/api/pinas-upgrade':
+            if not s or s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            pw=data.get('admin_password')
+            if not isinstance(pw,str) or not verify(pw,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
+            filename=data.get('filename','');digest=data.get('sha256','');encoded=data.get('package_b64','')
+            if not isinstance(filename,str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}\.py',filename) or not isinstance(encoded,str) or len(encoded)>3*1024*1024 or not isinstance(digest,str) or not re.fullmatch('[a-fA-F0-9]{64}',digest):
+                self.json({'error':'Invalid PiNAS update package'},400);return
+            try:
+                raw=base64.b64decode(encoded,validate=True)
+                if not raw or len(raw)>2*1024*1024 or not hmac.compare_digest(hashlib.sha256(raw).hexdigest(),digest.lower()):
+                    self.json({'error':'Package size or SHA-256 mismatch'},400);return
+                proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-upgrader','apply'],input=raw,capture_output=True,timeout=30)
+                if proc.returncode:raise RuntimeError((proc.stderr.decode(errors='replace') or 'Update was rejected')[-1200:])
+                self.json({'accepted':True,'message':'Update scheduled; service will restart'});return
+            except (OSError,RuntimeError,subprocess.TimeoutExpired) as exc:
+                self.json({'error':str(exc)},503);return
         if path=='/api/settings':
             theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
             interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
@@ -1776,6 +1816,75 @@ if __name__=='__main__':
         print(str(exc),file=sys.stderr);sys.exit(1)
 """
 
+NAS_UPDATER_HELPER = r"""#!/usr/bin/env python3
+# Restricted privileged PiNAS updater: accepts package bytes only through stdin.
+import ast,hashlib,json,os,pathlib,re,shutil,subprocess,sys,time
+BASE=pathlib.Path('/opt/pinas/pinas.py')
+ROOT=pathlib.Path('/var/lib/pinas')
+STAGE=ROOT/'pinas-upgrade-staged.py'
+STATUS=ROOT/'pinas-upgrade-status.json'
+BACKUP=pathlib.Path('/opt/pinas/pinas.py.previous')
+MAX=2*1024*1024
+def status(state,message):
+    tmp=ROOT/'pinas-upgrade-status.tmp'
+    tmp.write_text(json.dumps({'state':state,'message':message,'at':time.time()}))
+    os.chmod(tmp,0o644);os.replace(tmp,STATUS)
+def validate(data):
+    if len(data)<1000 or len(data)>MAX:raise ValueError('Invalid PiNAS release size')
+    text=data.decode('utf-8')
+    tree=ast.parse(text,filename='pinas.py')
+    if not text.startswith('#!/usr/bin/env python3') or 'PiNAS' not in text[:512]:
+        raise ValueError('File is not a recognised PiNAS standalone release')
+    versions=[n.value.value for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='VERSION' for t in n.targets) and isinstance(n.value,ast.Constant) and isinstance(n.value.value,str)]
+    if len(versions)!=1 or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9.]+)?',versions[0]):raise ValueError('Missing valid PiNAS version')
+    if not any(isinstance(n,ast.FunctionDef) and n.name=='install' for n in tree.body):raise ValueError('Missing PiNAS installer')
+    compile(tree,'pinas.py','exec')
+    return versions[0]
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    if sys.argv[1:]==['apply']:
+        data=sys.stdin.buffer.read(MAX+1)
+        version=validate(data)
+        if STAGE.exists():raise ValueError('Another update is already staged')
+        fd=os.open(STAGE,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+        try:
+            with os.fdopen(fd,'wb') as out:out.write(data);out.flush();os.fsync(out.fileno())
+            status('scheduled','PiNAS '+version+' installation scheduled')
+            p=subprocess.run(['/usr/bin/systemd-run','--unit=pinas-application-upgrade','--collect','/usr/bin/python3','/usr/local/libexec/pinas-upgrader','worker'],capture_output=True,text=True,timeout=15)
+            if p.returncode:raise ValueError('Could not start updater: '+p.stderr.strip()[-500:])
+        except Exception:
+            STAGE.unlink(missing_ok=True);status('failed','Unable to schedule update');raise
+        print(json.dumps({'scheduled':True,'version':version}))
+    elif sys.argv[1:]==['worker']:
+        if not STAGE.is_file():raise ValueError('No staged update')
+        data=STAGE.read_bytes();version=validate(data)
+        status('installing','Installing PiNAS '+version)
+        if not BASE.is_file():raise ValueError('Installed PiNAS file missing')
+        target=BASE.with_name('pinas.py.new')
+        try:
+            shutil.copy2(BASE,BACKUP)
+            target.write_bytes(data);os.chmod(target,0o755)
+            os.replace(target,BASE)
+            result=subprocess.run(['/usr/bin/systemctl','restart','pinas.service'],capture_output=True,text=True,timeout=35)
+            if result.returncode:raise ValueError('PiNAS restart failed: '+result.stderr[-500:])
+            time.sleep(2)
+            active=subprocess.run(['/usr/bin/systemctl','is-active','--quiet','pinas.service'],timeout=10)
+            if active.returncode:raise ValueError('Updated PiNAS service is not running')
+            status('succeeded','PiNAS '+version+' installed. Previous release retained as pinas.py.previous')
+        except Exception as exc:
+            if BACKUP.exists():
+                shutil.copy2(BACKUP,BASE)
+                subprocess.run(['/usr/bin/systemctl','restart','pinas.service'],timeout=35,check=False)
+            status('rolled_back','Update failed and previous application restored: '+str(exc)[:600])
+            raise
+        finally:
+            target.unlink(missing_ok=True);STAGE.unlink(missing_ok=True)
+    else:raise ValueError('Invalid updater command')
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
 def install(args):
     if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
     if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
@@ -1837,6 +1946,14 @@ def install(args):
     os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
         files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    updater_helper=Path('/usr/local/libexec/pinas-upgrader')
+    updater_helper.write_text(NAS_UPDATER_HELPER)
+    os.chown(updater_helper,0,0);os.chmod(updater_helper,0o700)
+    updater_sudoers=Path('/etc/sudoers.d/pinas-upgrader')
+    updater_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-upgrader apply\\n')
+    os.chown(updater_sudoers,0,0);os.chmod(updater_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(updater_sudoers)],capture_output=True).returncode:
+        updater_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS updater sudoers configuration')
     storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
     storage_helper.write_text(NAS_STORAGE_HELPER)
     os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
