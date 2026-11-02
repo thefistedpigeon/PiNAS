@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='0.6.0-rc16.3'
+VERSION='0.6.0-rc16.4'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -487,6 +487,7 @@ PAGE=r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="
  .storage-disk-entry{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 0;border-top:1px solid var(--line)}.storage-disk-entry:first-of-type{border-top:0}.disk-properties{display:grid;gap:9px;min-width:0}.disk-properties>div{display:grid;grid-template-columns:135px minmax(0,1fr);gap:12px;align-items:baseline}.disk-properties span{color:var(--muted)}.disk-properties strong{font-weight:600;overflow-wrap:anywhere}.disk-management-action{display:flex;justify-content:space-between;align-items:center;gap:18px;border-top:1px solid var(--line);padding:18px 0}.disk-management-action>div{min-width:0}.disk-management-action p{margin:7px 0}.disk-management-action .btn{min-width:135px}.disk-management-action button:disabled{opacity:.45}@media(max-width:560px){.storage-disk-entry,.disk-management-action{align-items:stretch;flex-direction:column}.disk-properties>div{grid-template-columns:115px minmax(0,1fr)}}.storage-action{min-width:125px}.storage-volume{padding:10px 0;border-top:1px solid var(--line)}.wizard-option{display:block;padding:12px;border:1px solid var(--line);border-radius:var(--radius-sm);margin:8px 0}.wizard-option input{margin-right:8px}.wizard-option small{display:block;color:var(--muted);margin:5px 0 0 25px}.storage-wizard{width:min(100%,610px)}.disk-summary{padding:18px 0;border-top:1px solid var(--line)}.disk-summary:first-of-type{border-top:0}.disk-heading,.disk-foot{display:flex;justify-content:space-between;gap:12px;align-items:center}.disk-heading strong,.disk-heading .small{display:block}.disk-heading .small{margin-top:5px}.disk-usage{height:12px;margin:12px 0 8px}.disk-foot{color:var(--muted);font-size:12px}@media(max-width:560px){.disk-heading{align-items:flex-start;flex-direction:column}}
 .raid-wizard{width:min(100%,660px)}.raid-disk{display:flex;gap:12px;align-items:center;border:1px solid var(--line);padding:12px;border-radius:var(--radius-sm);margin:8px 0;cursor:pointer}.raid-disk span{display:flex;flex-direction:column;gap:4px}.raid-disk small{color:var(--muted)}.raid-disk input{accent-color:var(--accent)}
 .health-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.health-grid>div{display:flex;flex-direction:column;gap:7px;min-width:0}.health-grid strong{overflow-wrap:anywhere;font-size:1.1rem}@media(max-width:560px){.health-grid{grid-template-columns:1fr}}
+.share-remove-confirm{background:var(--danger)!important;color:#fff!important;border-color:var(--danger)!important}
 /* PiNAS unified design system — no per-page hard-coded appearance rules */
 :root{--success:#218457;--warning:#a76a12;--danger:#bb3444;--radius:16px;--radius-sm:11px;--space:8px;--ease:cubic-bezier(.2,.75,.25,1);--duration:190ms;--shadow:0 6px 24px rgba(20,24,34,.035);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:12px}
 [data-theme=light]{--bg:#f7f8fa;--surface:#fff;--ink:#20232a;--muted:#646b76;--line:#e4e7eb;--soft:#f1f3f6}
@@ -514,6 +515,20 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 
 .save-schedule-button{display:inline-flex;align-items:center;gap:9px;margin:12px 0 8px}.save-schedule-button svg{flex:none;display:block}.save-schedule-button:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}
 .updates-actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 12px}.updates-actions .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;transition:background var(--duration) var(--ease),border-color var(--duration) var(--ease),color var(--duration) var(--ease),transform var(--duration) var(--ease)}.updates-actions .btn svg{display:block;width:22px;height:22px;flex:none}.updates-actions .btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff;filter:none}.updates-actions .btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.updates-actions .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;filter:none}.updates-status-row{display:flex;align-items:center;gap:12px;min-height:32px;margin:0 0 16px}.updates-spinner{width:18px;height:18px;flex:none;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:updates-spin .8s linear infinite}.updates-spinner[hidden]{display:none!important}@keyframes updates-spin{to{transform:rotate(360deg)}}.updates-log{margin-top:16px;border:1px solid var(--line);border-radius:11px;overflow:hidden}.updates-log summary{cursor:pointer;padding:12px 14px;font-weight:600;user-select:none}.updates-log summary:hover{color:var(--accent)}.updates-log pre{white-space:pre-wrap;overflow:auto;max-height:250px;margin:0;padding:12px 14px;border-top:1px solid var(--line)}.updates-actions .btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(1)}
+/* RC16.4 shared UI consistency and accessibility pass */
+:root{--control-radius:var(--radius-sm);--control-height:42px;--dialog-gap:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--control-height);border-radius:var(--control-radius);line-height:1.25;text-align:center}
+.btn:disabled,.icon-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
+.btn.danger,.share-remove-confirm{background:#b72b3c!important;border-color:#b72b3c!important;color:#fff!important}
+.btn.danger:hover:not(:disabled),.share-remove-confirm:hover:not(:disabled){background:#992234!important;border-color:#992234!important;filter:none}
+.modal-overlay{overflow-y:auto;overscroll-behavior:contain}
+.modal-overlay>.settings-modal{margin:auto;width:min(100%,570px);max-height:calc(100dvh - 32px);min-width:0;overflow-y:auto;overscroll-behavior:contain}
+.modal-overlay .modal-heading{flex-shrink:0}
+.modal-overlay .modal-actions{flex-wrap:wrap;row-gap:10px}
+.modal-overlay .modal-actions>.btn{white-space:normal}
+.modal-overlay .field input,.modal-overlay .field select{min-width:0}
+.modal-overlay [role="status"]{overflow-wrap:anywhere}
+@media(max-width:560px){.modal-overlay>.settings-modal{max-height:calc(100dvh - 16px);padding:16px}.modal-overlay .modal-actions>.btn{flex:1 1 auto}}
 </style></head><body><div id="app"></div><script>
 const app=document.getElementById('app');let info={},cfg={},cpu={},page='Overview',csrf='',role='admin',username='',displayName='',refreshTimer=null,lastNavRect=null;const nav=['Overview','Storage','Users','Shares','Applications'];
 // Navigation is derived from actual mounted NAS volumes, not a setup flag.
@@ -617,7 +632,7 @@ async function editNasShare(name){
 }
 function removeNasShare(name){
  const overlay=document.createElement('div');overlay.className='modal-overlay';
- overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Remove share" tabindex="-1"><div class="modal-heading"><h2>Remove network share</h2><button class="icon-btn" id="ds-close" aria-label="Close">${CANCEL_ICON}</button></div><p>Remove the Samba share <strong>${esc(name)}</strong>?</p><p class="hint">The network share will be removed, but its folder and files will be preserved on disk.</p><form id="ds-form"><label class="field">Administrator password<input type="password" name="admin_password" required autocomplete="current-password"></label><p id="ds-message" role="status"></p><div class="modal-actions"><button type="button" class="btn outline" id="ds-cancel">Cancel</button><button type="submit" class="btn danger" id="ds-submit">Remove share</button></div></form></section>`;
+ overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Remove share" tabindex="-1"><div class="modal-heading"><h2>Remove network share</h2><button class="icon-btn" id="ds-close" aria-label="Close">${CANCEL_ICON}</button></div><p>Remove the Samba share <strong>${esc(name)}</strong>?</p><p class="hint">The network share will be removed, but its folder and files will be preserved on disk.</p><form id="ds-form"><label class="field">Administrator password<input type="password" name="admin_password" required autocomplete="current-password"></label><p id="ds-message" role="status"></p><div class="modal-actions"><button type="button" class="btn outline" id="ds-cancel">Cancel</button><button type="submit" class="btn danger share-remove-confirm" id="ds-submit">Remove share</button></div></form></section>`;
  document.body.appendChild(overlay);const close=()=>overlay.remove();
  overlay.querySelector('#ds-close').onclick=close;overlay.querySelector('#ds-cancel').onclick=close;
  overlay.querySelector('#ds-form').onsubmit=async e=>{e.preventDefault();const btn=overlay.querySelector('#ds-submit'),msg=overlay.querySelector('#ds-message');btn.disabled=true;msg.textContent='Removing share…';try{await post('/api/delete-share',{name,admin_password:new FormData(e.currentTarget).get('admin_password')});const r=await fetch('/api/state',{cache:'no-store'}),j=await r.json();if(!r.ok)throw Error('Unable to refresh shares');info=j.hardware||info;close();render()}catch(error){msg.textContent=error.message;btn.disabled=false}};
@@ -674,7 +689,7 @@ function openSettings(){
  document.body.appendChild(overlay);
  const close=()=>{document.removeEventListener('keydown',onEscape);overlay.remove()},field=id=>overlay.querySelector('#'+id),msg=field('settings-message');
  field('settings-close').onclick=close;field('settings-cancel').onclick=close;
- field('reset-smb').onclick=()=>{if(!confirm('Reset Samba configuration? Custom Samba settings and unmanaged shares will be removed from the active configuration. Data files will not be deleted.'))return;const panel=document.createElement('div');panel.className='modal-overlay';panel.innerHTML='<section class="card settings-modal" role="dialog" aria-modal="true" aria-label="Confirm SMB reset" style="padding:24px"><h2>Reset SMB Configuration</h2><p>Existing NAS files will be preserved. Custom Samba settings will be replaced.</p><label class="field">Administrator password<input type="password" id="smb-reset-password" autocomplete="current-password"></label><p id="smb-reset-error" role="status"></p><div class="modal-actions"><button class="btn outline" id="smb-reset-cancel">Cancel</button><button class="btn" id="smb-reset-confirm">Reset configuration</button></div></section>';document.body.appendChild(panel);const cancel=()=>panel.remove();panel.querySelector('#smb-reset-cancel').onclick=cancel;panel.querySelector('#smb-reset-confirm').onclick=async()=>{const btn=panel.querySelector('#smb-reset-confirm');btn.disabled=true;try{const result=await post('/api/reset-smb',{confirm:'RESET SMB CONFIGURATION',admin_password:panel.querySelector('#smb-reset-password').value});msg.textContent='SMB configuration reset. Backup: '+result.backup;cancel()}catch(e){panel.querySelector('#smb-reset-error').textContent=e.message;btn.disabled=false}};panel.querySelector('#smb-reset-password').focus()};
+ field('reset-smb').onclick=()=>{const panel=document.createElement('div');panel.className='modal-overlay';panel.innerHTML='<section class="card settings-modal" role="dialog" aria-modal="true" aria-label="Confirm SMB reset" tabindex="-1"><h2>Reset SMB Configuration</h2><p class="hint">Reset Samba configuration? Custom Samba settings and unmanaged shares will be removed from the active configuration. Data files will not be deleted.</p><label class="field">Administrator password<input type="password" id="smb-reset-password" autocomplete="current-password"></label><p id="smb-reset-error" role="status"></p><div class="modal-actions"><button class="btn outline" id="smb-reset-cancel">Cancel</button><button class="btn" id="smb-reset-confirm">Reset configuration</button></div></section>';document.body.appendChild(panel);const cancel=()=>panel.remove();panel.querySelector('#smb-reset-cancel').onclick=cancel;panel.onclick=e=>{if(e.target===panel)cancel()};panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();cancel()}});panel.querySelector('#smb-reset-confirm').onclick=async()=>{const btn=panel.querySelector('#smb-reset-confirm');btn.disabled=true;try{const result=await post('/api/reset-smb',{confirm:'RESET SMB CONFIGURATION',admin_password:panel.querySelector('#smb-reset-password').value});msg.textContent='SMB configuration reset. Backup: '+result.backup;cancel()}catch(e){panel.querySelector('#smb-reset-error').textContent=e.message;btn.disabled=false}};panel.querySelector('#smb-reset-password').focus()};
  overlay.onclick=e=>{if(e.target===overlay)close()};
  const onEscape=e=>{if(e.key==='Escape')close()};
  document.addEventListener('keydown',onEscape);
@@ -1336,6 +1351,8 @@ def main():
             run(['/usr/bin/setfacl','-b',str(folder)])
             run(['/usr/bin/setfacl','-k',str(folder)])
             run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
+            if public:os.chmod(folder,0o777)
+            else:os.chmod(folder,0o700)
             if new_smb!=old_smb:atomic(SMB,new_smb,0o644)
             atomic(CONF,newconf,0o644)
             run(['/usr/bin/testparm','-s'])
@@ -1430,10 +1447,11 @@ def main():
     try:
         # Root-owned folder; Samba creates files as authenticated Unix users.
         os.chown(folder,0,0)
-        os.chmod(folder,0o700)
+        os.chmod(folder,0o777 if public else 0o700)
         acl=['u::rwx','g::---','o::---','m::rwx']+(['u:nobody:'+('rwx' if public_write else 'r-x')] if public else [f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()])
         default=['d:'+entry for entry in acl]
         run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
+        if public:os.chmod(folder,0o777)
         if amended!=original:atomic(SMB,amended,0o644)
         atomic(CONF,oldconf+stanza,0o644)
         run(['/usr/bin/testparm','-s'])
