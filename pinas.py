@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='0.6.0-rc16.4'
+VERSION='0.6.0-rc16.5'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -235,6 +235,14 @@ def configure_nas_mount(device):
         input=json.dumps({'device':device}),text=True,capture_output=True,timeout=40,check=False)
     if proc.returncode:
         raise RuntimeError((proc.stderr.strip() or 'Storage configuration failed')[-800:])
+    return json.loads(proc.stdout)
+
+def destructive_disk_action(action,device,fs):
+    request={'action':action,'device':device,'fs':fs,'confirmation':device}
+    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-disk-destructive','execute'],
+        input=json.dumps(request),capture_output=True,text=True,timeout=320,check=False)
+    if proc.returncode:
+        raise RuntimeError((proc.stderr.strip() or 'Disk operation failed')[-700:])
     return json.loads(proc.stdout)
 
 def nas_file_action(action, username, share='', path='', **extra):
@@ -653,13 +661,37 @@ function openDiskWizard(index){
  const vs=d.volumes||[],supported=vs.filter(v=>['ext4','xfs','btrfs'].includes(v.fs)&&v.uuid&&!v.read_only);
  const hasFilesystem=vs.some(v=>!!v.fs)||!!d.fs;
  const options=[
-  {title:'Wipe Disk',description:'Erase all data and partition information from a disk. Any existing data on the disk will be lost.',disabled:true,reason:'Unavailable until destructive-operation protection is implemented.'},
-  {title:hasFilesystem?'Reformat Disk':'Format Disk',description:hasFilesystem?'Prepare the drive with a new filesystem ready to be mounted. Warning: all existing data will be lost.':'Prepare the drive with a filesystem ready to be mounted. Formatting erases any data on the selected device.',disabled:true,reason:'Unavailable until formatting safety checks are implemented.'},
+  {title:'Wipe Disk',description:'Remove all partition and filesystem signatures. All data becomes inaccessible. Requires an unused disk.',action:'wipe'},
+  {title:hasFilesystem?'Reformat Disk':'Format Disk',description:'Erase this disk and create one new filesystem partition. All existing data will be lost. Requires an unused disk.',action:'format'},
   {title:'Mount Disk',description:'Make the disk ready for NAS storage. Existing supported filesystems can be adopted without erasing data.',disabled:false}
  ];
- overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Manage disk" tabindex="-1"><div class="modal-heading"><h2>Manage Disk</h2><button class="icon-btn" id="disk-close" aria-label="Close">${CANCEL_ICON}</button></div><div class="settings-scroll"><p><strong>${esc(d.model||d.name)}</strong> · ${size(d.size)} · ${esc(d.path)}</p>${options.map((o,i)=>`<div class="disk-management-action"><div><strong>${esc(o.title)}</strong><p class="small">${esc(o.description)}</p>${o.disabled?`<p class="small">${esc(o.reason)}</p>`:''}</div><button class="btn ${i===0?'outline':''}" ${o.disabled?'disabled title="Not yet available"':`id="disk-mount"`} type="button">${esc(o.title)}</button></div>`).join('')}<div id="disk-mount-options" class="hidden"><h3>Existing filesystems</h3>${supported.length?supported.map(v=>`<div class="storage-volume"><strong>${esc(v.fs.toUpperCase())}</strong> · ${esc(v.name)}<p class="small">${v.mounts.length?'Mounted at '+esc(v.mounts.join(', ')):'Not mounted'} · ${v.persistent?'Persistent':'Not configured for startup'}</p>${!v.persistent||!v.mounts.length?`<button class="btn outline" data-adopt="${esc(v.path)}">Adopt without formatting</button>`:'<p class="hint">Ready for NAS shares.</p>'}</div>`).join(''):'<p class="hint">No supported existing filesystem with a UUID was found. Formatting is not yet available.</p>'}</div><div id="disk-message" role="status"></div></div><div class="modal-actions"><button class="btn outline" id="disk-cancel">Close</button></div></section>`;
+ overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Manage disk" tabindex="-1"><div class="modal-heading"><h2>Manage Disk</h2><button class="icon-btn" id="disk-close" aria-label="Close">${CANCEL_ICON}</button></div><div class="settings-scroll"><p><strong>${esc(d.model||d.name)}</strong> · ${size(d.size)} · ${esc(d.path)}</p>${options.map((o,i)=>`<div class="disk-management-action"><div><strong>${esc(o.title)}</strong><p class="small">${esc(o.description)}</p>${o.disabled?`<p class="small">${esc(o.reason)}</p>`:''}</div><button class="btn ${i===0?'outline':''}" ${o.action?`data-disk-operation="${o.action}"`:`id="disk-mount"`} type="button">${esc(o.title)}</button></div>`).join('')}<div id="disk-mount-options" class="hidden"><h3>Existing filesystems</h3>${supported.length?supported.map(v=>`<div class="storage-volume"><strong>${esc(v.fs.toUpperCase())}</strong> · ${esc(v.name)}<p class="small">${v.mounts.length?'Mounted at '+esc(v.mounts.join(', ')):'Not mounted'} · ${v.persistent?'Persistent':'Not configured for startup'}</p>${!v.persistent||!v.mounts.length?`<button class="btn outline" data-adopt="${esc(v.path)}">Adopt without formatting</button>`:'<p class="hint">Ready for NAS shares.</p>'}</div>`).join(''):'<p class="hint">No supported existing filesystem with a UUID was found. Use Format Disk above to create a new filesystem on an unused drive.</p>'}</div><div id="disk-message" role="status"></div></div><div class="modal-actions"><button class="btn outline" id="disk-cancel">Close</button></div></section>`;
  document.body.appendChild(overlay);const close=()=>{document.removeEventListener('keydown',onKey);overlay.remove()};const onKey=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',onKey);overlay.querySelector('#disk-close').onclick=close;overlay.querySelector('#disk-cancel').onclick=close;overlay.onclick=e=>{if(e.target===overlay)close()};
  overlay.querySelector('#disk-mount').onclick=()=>overlay.querySelector('#disk-mount-options').classList.toggle('hidden');
+ overlay.querySelectorAll('[data-disk-operation]').forEach(button=>button.onclick=()=>{
+   const action=button.dataset.diskOperation;
+   const confirmOverlay=document.createElement('div');confirmOverlay.className='modal-overlay';
+   const format=action==='format';
+   confirmOverlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Confirm destructive disk operation" tabindex="-1"><div class="modal-heading"><h2>${format?'Reformat':'Wipe'} disk</h2><button class="icon-btn" id="wipe-close" aria-label="Close">${CANCEL_ICON}</button></div><p class="hint"><strong>Permanent data loss.</strong> This will erase data and partition information on <strong>${esc(d.path)}</strong>. PiNAS will refuse system, mounted, configured, RAID or busy disks. No files can be recovered by PiNAS.</p><form id="wipe-form">${format?'<label class="field">Filesystem<select name="filesystem"><option value="ext4">ext4 — general purpose (recommended)</option><option value="xfs">XFS — large files</option><option value="btrfs">Btrfs — checksums and snapshots</option></select></label>':''}<label class="field">Type the exact disk device path (${esc(d.path)})<input name="confirmation" required autocomplete="off" spellcheck="false"></label><label class="field">Current administrator password<input name="admin_password" type="password" required autocomplete="current-password"></label><p id="wipe-error" role="status"></p><div class="modal-actions"><button class="btn outline" type="button" id="wipe-cancel">Cancel</button><button class="btn danger" type="submit">${format?'Erase and format':'Permanently wipe'} disk</button></div></form></section>`;
+   document.body.appendChild(confirmOverlay);
+   const dismiss=()=>confirmOverlay.remove();
+   confirmOverlay.querySelector('#wipe-close').onclick=dismiss;
+   confirmOverlay.querySelector('#wipe-cancel').onclick=dismiss;
+   confirmOverlay.onclick=e=>{if(e.target===confirmOverlay)dismiss()};
+   confirmOverlay.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();dismiss()}});
+   confirmOverlay.querySelector('#wipe-form').onsubmit=async e=>{
+     e.preventDefault();const form=e.currentTarget,submit=form.querySelector('[type=submit]');
+     const values=new FormData(form);submit.disabled=true;
+     confirmOverlay.querySelector('#wipe-error').textContent='Validating disk and applying operation…';
+     try{
+       const result=await post('/api/disk-destructive',{device:d.path,action,fs:format?values.get('filesystem'):null,confirmation:values.get('confirmation'),admin_password:values.get('admin_password')});
+       dismiss();close();const response=await fetch('/api/state',{cache:'no-store'}),data=await response.json();info=data.hardware||info;render();
+       const note=format?'Disk formatted as '+result.fs+'; mount the new partition via Storage.':'Disk wiped. It is now unformatted.';
+       const message=document.createElement('div');message.className='card';message.textContent=note;document.querySelector('main')?.prepend(message);
+     }catch(error){confirmOverlay.querySelector('#wipe-error').textContent=error.message;submit.disabled=false}
+   };
+   confirmOverlay.querySelector('[name=confirmation]').focus();
+ });
  overlay.querySelectorAll('[data-adopt]').forEach(btn=>btn.onclick=async()=>{const device=btn.dataset.adopt;const password=await fileTextDialog({title:'Authorise storage adoption',label:'Administrator password',description:'PiNAS will preserve existing files and configure a UUID-based mount. The device will not be formatted.',confirmLabel:'Configure storage',password:true});if(password===null)return;btn.disabled=true;const msg=overlay.querySelector('#disk-message');msg.textContent='Configuring storage…';try{const result=await post('/api/storage',{device,admin_password:password});msg.textContent='Storage mounted at '+result.mount;const j=await (await fetch('/api/state',{cache:'no-store'})).json();info=j.hardware||info;close();render()}catch(e){msg.textContent=e.message;btn.disabled=false}});
  overlay.querySelector('.storage-wizard').focus();
 }
@@ -767,7 +799,10 @@ async function renderFiles(){
        const rename=document.createElement('button');rename.className='icon-btn file-action-btn';rename.innerHTML=actionIcon('rename');rename.title='Rename';rename.setAttribute('aria-label','Rename '+x.name);rename.onclick=async()=>{const name=await fileTextDialog({title:'Rename item',label:'New name',initial:x.name,confirmLabel:'Rename'});if(name&&name!==x.name)action('rename',{name})};line.append(rename);
        const copy=document.createElement('button');copy.className='icon-btn file-action-btn';copy.innerHTML=actionIcon('copy');copy.title='Copy';copy.setAttribute('aria-label','Copy '+x.name);copy.onclick=async()=>{const dest=await fileTextDialog({title:'Copy item',label:'Destination within this share',initial:joined(currentPath,x.name+'-copy'),description:'Enter a path relative to the current share.',confirmLabel:'Copy'});if(dest)action('copy',{dest})};line.append(copy);
        const move=document.createElement('button');move.className='icon-btn file-action-btn';move.innerHTML=actionIcon('move');move.title='Move';move.setAttribute('aria-label','Move '+x.name);move.onclick=async()=>{const dest=await fileTextDialog({title:'Move item',label:'Destination within this share',initial:joined(currentPath,x.name),description:'Enter a path relative to the current share.',confirmLabel:'Move'});if(dest&&dest!==joined(currentPath,x.name))action('move',{dest})};line.append(move);
-       const del=document.createElement('button');del.className='icon-btn file-action-btn file-action-delete';del.innerHTML=actionIcon('delete');del.title='Delete';del.setAttribute('aria-label','Delete '+x.name);del.onclick=async()=>{if(!confirm('Delete '+x.name+'?'+(x.dir?' Folder must be empty.':'')))return;await action('delete',{})};line.append(del);
+       const del=document.createElement('button');del.className='icon-btn file-action-btn file-action-delete';del.innerHTML=actionIcon('delete');del.title='Delete';del.setAttribute('aria-label','Delete '+x.name);del.onclick=async()=>{
+         const password=await fileTextDialog({title:x.dir?'Delete folder and contents':'Delete file',label:'Your account password',description:'Permanently delete '+x.name+(x.dir?' and everything inside it':'')+' from '+currentShare+'. This cannot be undone. Re-enter the password for '+username+' to continue.',confirmLabel:'Delete permanently',password:true});
+         if(password!==null)await action('delete',{password});
+       };line.append(del);
      }items.append(line)}
    }catch(e){msg.textContent=e.message}}
  document.getElementById('file-refresh').onclick=()=>show();
@@ -834,7 +869,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/disk-destructive','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -887,7 +922,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Unsupported file action'},400);return
             try:
                 result=nas_file_action(action,s['username'],share,relative,
-                    name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0))
+                    name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0),password=data.get('password') if action=='delete' else None)
                 self.json(result)
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},400)
@@ -984,12 +1019,28 @@ class Handler(BaseHTTPRequestHandler):
             global DISCOVERY_AT
             DISCOVERY_AT=0
             self.json({'ok':True,'username':username,'display_name':display_name});return
+        if path=='/api/disk-destructive':
+            if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            device=data.get('device');action=data.get('action');fs=data.get('fs')
+            password=data.get('admin_password');confirmation=data.get('confirmation')
+            if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_.-]{1,70}',device):
+                self.json({'error':'Invalid physical disk'},400);return
+            if action not in ('wipe','format') or (action=='format' and fs not in ('ext4','xfs','btrfs')):
+                self.json({'error':'Invalid disk operation'},400);return
+            if confirmation!=device:self.json({'error':'Type the exact device path to confirm'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Current administrator password is incorrect'},403);return
+            try:result=destructive_disk_action(action,device,fs)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:
+                self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json(result);return
         if path=='/api/storage':
             if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             device=data.get('device');password=data.get('admin_password')
             if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_./-]{1,90}',device) or '..' in device:
                 self.json({'error':'Invalid device'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
             try:result=configure_nas_mount(device)
             except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:self.json({'error':str(exc)},503);return
@@ -1002,7 +1053,7 @@ class Handler(BaseHTTPRequestHandler):
             if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):self.json({'error':'Invalid public sharing policy.'},400);return
             if not isinstance(access,dict) or (not public and not 1<=len(access)<=64) or (public and access!={}) or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
                 self.json({'error':'Assign at least one valid user access.'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
             if not set(access).issubset({u['name'] for u in nas_user_list()}):
                 self.json({'error':'Unknown NAS user.'},409);return
@@ -1016,7 +1067,7 @@ class Handler(BaseHTTPRequestHandler):
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
                 self.json({'error':'Invalid share name.'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
             if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
                 self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
@@ -1033,7 +1084,7 @@ class Handler(BaseHTTPRequestHandler):
             if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):self.json({'error':'Invalid public sharing policy.'},400);return
             if not isinstance(access,dict) or (not public and not access) or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
                 self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
-            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+            if not isinstance(admin_password,str) or not verify(admin_password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
             if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
             valid_users={u['name'] for u in nas_user_list()}
@@ -1049,7 +1100,7 @@ class Handler(BaseHTTPRequestHandler):
             password=data.get('admin_password')
             if s.get('role')!='admin':self.json({'error':'Administrator required'},403);return
             if data.get('confirm')!='RESET SMB CONFIGURATION':self.json({'error':'Explicit confirmation required'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
             try:
                 result=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-smb-reset','reset'],capture_output=True,text=True,timeout=45,check=True)
@@ -1550,6 +1601,12 @@ def main():
     relative=q.get('path','');target=safe_path(root,relative)
     writable=s['access'][user]=='rw'
     if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    if action=='delete':
+        # Validate the current Samba password while still privileged; all actual
+        # filesystem mutations below run with the user's restricted UID/GID.
+        password=q.get('password')
+        if not isinstance(password,str) or not 1<=len(password)<=256 or not hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)):
+            raise ValueError('Current account password is incorrect')
     drop(person)
     # All operations below run with the NAS user's UID/GID. Uploads are staged
     # in the destination directory, then published by an atomic rename.
@@ -1648,9 +1705,29 @@ def main():
         dest.mkdir(mode=0o770);print('{"ok":true}');return
     if action=='delete':
         if target==root:raise ValueError('Cannot delete share root')
-        if target.is_dir():target.rmdir()
-        elif target.is_file():target.unlink()
-        else:raise ValueError('Not a regular file or empty folder')
+        base_stat=os.lstat(target)
+        if stat.S_ISLNK(base_stat.st_mode):raise ValueError('Symbolic links cannot be deleted via the web interface')
+        if stat.S_ISREG(base_stat.st_mode):
+            target.unlink()
+        elif stat.S_ISDIR(base_stat.st_mode):
+            # Full preflight: reject symlinks, filesystem boundaries and device nodes.
+            folders=[];files=[];count=0
+            for directory,dirs,names in os.walk(target,topdown=True,followlinks=False):
+                folder=pathlib.Path(directory)
+                details=os.lstat(folder)
+                if not stat.S_ISDIR(details.st_mode) or details.st_dev!=base_stat.st_dev:
+                    raise ValueError('Unsafe folder or mounted filesystem in deletion')
+                folders.append(folder)
+                for name in dirs+names:
+                    node=folder/name;details=os.lstat(node)
+                    if details.st_dev!=base_stat.st_dev or not (stat.S_ISDIR(details.st_mode) or stat.S_ISREG(details.st_mode)):
+                        raise ValueError('Deletion cannot cross filesystems or contain symbolic links/special files')
+                    count+=1
+                    if count>10000:raise ValueError('Folder contains more than 10,000 items; use SMB for large deletions')
+                    if stat.S_ISREG(details.st_mode):files.append(node)
+            for node in files:node.unlink()
+            for folder in reversed(folders):folder.rmdir()
+        else:raise ValueError('Only regular files and folders can be deleted')
         print('{"ok":true}');return
     if action=='download':
         if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
@@ -1708,6 +1785,138 @@ def main():
         run(['/usr/bin/apt-get','update'],210)
     else:sys.exit('Unsupported operation')
 if __name__=='__main__':main()
+"""
+
+NAS_DESTRUCTIVE_HELPER = r"""#!/usr/bin/env python3
+# Restricted block-device destructive broker: no arbitrary paths or commands.
+import json, os, pathlib, re, subprocess, sys, time
+
+def run(*args, timeout=30, check=True):
+    result=subprocess.run(list(args),capture_output=True,text=True,timeout=timeout)
+    if check and result.returncode:
+        raise ValueError((result.stderr or result.stdout or 'Storage operation failed')[-500:])
+    return result.stdout.strip()
+
+def nodes():
+    roots=json.loads(run('lsblk','-J','-b','-o','NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME,MAJ:MIN')).get('blockdevices',[])
+    if not isinstance(roots,list) or not roots:raise ValueError('Unable to inspect block devices')
+    return roots
+
+def flatten(root):
+    yield root
+    for child in root.get('children') or []:
+        yield from flatten(child)
+
+def validate(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_.-]{1,70}',device):
+        raise ValueError('Select a physical disk')
+    path=pathlib.Path(device)
+    if not path.is_block_device() or str(path.resolve())!=device:
+        raise ValueError('Noncanonical or missing block device')
+    roots=nodes()
+    disk=next((d for d in roots if d.get('path')==device and d.get('type')=='disk'),None)
+    if disk is None or disk.get('ro'):raise ValueError('Not an eligible writable whole disk')
+    name=disk.get('name','')
+    if name.startswith(('loop','ram','zram','sr','fd','nbd','md','dm-')):
+        raise ValueError('Virtual and RAID disks are not eligible')
+    children=list(flatten(disk))
+    if any(n.get('type') not in ('disk','part') for n in children):
+        raise ValueError('RAID, LVM, encrypted and complex volumes are protected')
+    if any(n.get('ro') for n in children):raise ValueError('Read-only device or partition')
+    if any(m for n in children for m in n.get('mountpoints') or [] if m):
+        raise ValueError('Disk contains mounted filesystems; unmount them first')
+    # Conservative fail-closed system check: root must be detected in lsblk.
+    allnodes=[n for r in roots for n in flatten(r)]
+    if not any('/' in (n.get('mountpoints') or []) for n in allnodes):
+        raise ValueError('Unable to identify operating-system disk safely')
+    for n in children:
+        if (n.get('fstype') or '').lower() in (
+            'linux_raid_member','lvm2_member','crypto_luks','swap','zfs_member','bcache',
+            'isw_raid_member','ddf_raid_member'):
+            raise ValueError('RAID, swap and complex volume members are protected')
+    majors={str(n.get('maj:min')) for n in children}
+    for mount in ('/','/boot','/boot/firmware','/boot/efi'):
+        source=run('findmnt','-n','-o','MAJ:MIN','--target',mount,check=False)
+        if source and source in majors:raise ValueError('System disk is protected')
+    swaps=pathlib.Path('/proc/swaps').read_text().splitlines()[1:]
+    if any(row.split() and (row.split()[0] in {n.get('path') for n in children}) for row in swaps):
+        raise ValueError('Active swap is protected')
+    # Reject any fstab reference to this disk, whether by UUID, path or PARTUUID.
+    identifiers={str(n.get('path')) for n in children}
+    for n in children:
+        for key in ('uuid','partuuid'):
+            if n.get(key):identifiers.add(('UUID=' if key=='uuid' else 'PARTUUID=')+str(n[key]))
+    for n in children:
+        p=n.get('path')
+        if p:
+            for key in ('UUID','PARTUUID','LABEL'):
+                value=run('blkid','-s',key,'-o','value',p,check=False)
+                if value:identifiers.add(key+'='+value)
+    fstab=pathlib.Path('/etc/fstab').read_text().splitlines()
+    for line in fstab:
+        line=line.strip()
+        if not line or line.startswith('#'):continue
+        cols=line.split()
+        if cols and (cols[0] in identifiers or cols[0].startswith('/dev/disk/by-') and
+                     pathlib.Path(cols[0]).resolve().as_posix() in identifiers):
+            raise ValueError('Disk has an /etc/fstab entry; remove its persistent mount first')
+    shares=pathlib.Path('/var/lib/pinas/shares.json')
+    if shares.exists():
+        records=json.loads(shares.read_text())
+        for item in records:
+            if isinstance(item,dict) and (item.get('volume') in identifiers or
+                                          item.get('volume_label') in identifiers):
+                raise ValueError('Disk belongs to a PiNAS share; remove the share configuration first')
+    # Refuse device holders and unknown device stacks. Busy partitions will also
+    # be rejected by the kernel and filesystem utilities.
+    # No force-unmount, recursive removal, or automatic share deletion is permitted.
+    for n in children:
+        name=n.get('name')
+        if not isinstance(name,str) or not re.fullmatch('[A-Za-z0-9_.!+-]+',name):
+            raise ValueError('Invalid device topology')
+        holders=pathlib.Path('/sys/class/block')/name/'holders'
+        if not holders.is_dir() or any(holders.iterdir()):
+            raise ValueError('Device has active holders or cannot be inspected')
+    return disk,children
+
+def main():
+    if os.geteuid()!=0 or sys.argv[1:]!=['execute']:
+        raise ValueError('Unsupported operation')
+    request=json.loads(sys.stdin.read(4097))
+    action=request.get('action');device=request.get('device');fs=request.get('fs')
+    if action not in ('wipe','format') or (action=='format' and fs not in ('ext4','xfs','btrfs')):
+        raise ValueError('Invalid disk operation or filesystem')
+    if request.get('confirmation')!=device:
+        raise ValueError('Device confirmation mismatch')
+    # Re-evaluate immediately before the first destructive command.
+    _,children=validate(device)
+    for part in reversed(children[1:]):
+        run('wipefs','-a',part['path'],timeout=40)
+    run('wipefs','-a',device,timeout=40)
+    if action=='wipe':
+        run('blockdev','--rereadpt',device,timeout=15,check=False)
+        print(json.dumps({'ok':True,'action':'wipe','device':device}));return
+    run('parted','-s','-a','optimal',device,'mklabel','gpt','mkpart','primary','1MiB','100%',timeout=40)
+    run('udevadm','settle',timeout=20,check=False)
+    partition=None
+    for _ in range(10):
+        listing=nodes()
+        parent=next((d for d in listing if d.get('path')==device and d.get('type')=='disk'),None)
+        parts=[n for n in parent.get('children') or [] if n.get('type')=='part'] if parent else []
+        if len(parts)==1:
+            partition=parts[0].get('path');break
+        time.sleep(.3)
+    if not partition or not pathlib.Path(partition).is_block_device():
+        raise ValueError('Partition was created but not discovered; inspect disk before retrying')
+    if fs=='ext4':run('mkfs.ext4','-F',partition,timeout=240)
+    elif fs=='xfs':run('mkfs.xfs','-f',partition,timeout=240)
+    else:run('mkfs.btrfs','-f',partition,timeout=240)
+    uid=run('blkid','-s','UUID','-o','value',partition)
+    print(json.dumps({'ok':True,'action':'format','device':device,'partition':partition,'fs':fs,'uuid':uid}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
 """
 
 NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
@@ -1806,6 +2015,14 @@ def install(args):
     os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
         files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    disk_helper=Path('/usr/local/libexec/pinas-disk-destructive')
+    disk_helper.write_text(NAS_DESTRUCTIVE_HELPER)
+    os.chown(disk_helper,0,0);os.chmod(disk_helper,0o700)
+    disk_sudoers=Path('/etc/sudoers.d/pinas-disk-destructive')
+    disk_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-disk-destructive execute\n')
+    os.chown(disk_sudoers,0,0);os.chmod(disk_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(disk_sudoers)],capture_output=True).returncode:
+        disk_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS disk sudoers configuration')
     storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
     storage_helper.write_text(NAS_STORAGE_HELPER)
     os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
