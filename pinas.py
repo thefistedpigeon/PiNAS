@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='0.6.0-rc16.4'
+VERSION='0.6.0-rc16.5'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -767,7 +767,10 @@ async function renderFiles(){
        const rename=document.createElement('button');rename.className='icon-btn file-action-btn';rename.innerHTML=actionIcon('rename');rename.title='Rename';rename.setAttribute('aria-label','Rename '+x.name);rename.onclick=async()=>{const name=await fileTextDialog({title:'Rename item',label:'New name',initial:x.name,confirmLabel:'Rename'});if(name&&name!==x.name)action('rename',{name})};line.append(rename);
        const copy=document.createElement('button');copy.className='icon-btn file-action-btn';copy.innerHTML=actionIcon('copy');copy.title='Copy';copy.setAttribute('aria-label','Copy '+x.name);copy.onclick=async()=>{const dest=await fileTextDialog({title:'Copy item',label:'Destination within this share',initial:joined(currentPath,x.name+'-copy'),description:'Enter a path relative to the current share.',confirmLabel:'Copy'});if(dest)action('copy',{dest})};line.append(copy);
        const move=document.createElement('button');move.className='icon-btn file-action-btn';move.innerHTML=actionIcon('move');move.title='Move';move.setAttribute('aria-label','Move '+x.name);move.onclick=async()=>{const dest=await fileTextDialog({title:'Move item',label:'Destination within this share',initial:joined(currentPath,x.name),description:'Enter a path relative to the current share.',confirmLabel:'Move'});if(dest&&dest!==joined(currentPath,x.name))action('move',{dest})};line.append(move);
-       const del=document.createElement('button');del.className='icon-btn file-action-btn file-action-delete';del.innerHTML=actionIcon('delete');del.title='Delete';del.setAttribute('aria-label','Delete '+x.name);del.onclick=async()=>{if(!confirm('Delete '+x.name+'?'+(x.dir?' Folder must be empty.':'')))return;await action('delete',{})};line.append(del);
+       const del=document.createElement('button');del.className='icon-btn file-action-btn file-action-delete';del.innerHTML=actionIcon('delete');del.title='Delete';del.setAttribute('aria-label','Delete '+x.name);del.onclick=async()=>{
+         const password=await fileTextDialog({title:x.dir?'Delete folder and contents':'Delete file',label:'Your account password',description:'Permanently delete '+x.name+(x.dir?' and everything inside it':'')+' from '+currentShare+'. This cannot be undone. Re-enter the password for '+username+' to continue.',confirmLabel:'Delete permanently',password:true});
+         if(password!==null)await action('delete',{password});
+       };line.append(del);
      }items.append(line)}
    }catch(e){msg.textContent=e.message}}
  document.getElementById('file-refresh').onclick=()=>show();
@@ -887,7 +890,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Unsupported file action'},400);return
             try:
                 result=nas_file_action(action,s['username'],share,relative,
-                    name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0))
+                    name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0),password=data.get('password') if action=='delete' else None)
                 self.json(result)
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},400)
@@ -989,7 +992,7 @@ class Handler(BaseHTTPRequestHandler):
             device=data.get('device');password=data.get('admin_password')
             if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_./-]{1,90}',device) or '..' in device:
                 self.json({'error':'Invalid device'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
             try:result=configure_nas_mount(device)
             except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:self.json({'error':str(exc)},503);return
@@ -1002,7 +1005,7 @@ class Handler(BaseHTTPRequestHandler):
             if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):self.json({'error':'Invalid public sharing policy.'},400);return
             if not isinstance(access,dict) or (not public and not 1<=len(access)<=64) or (public and access!={}) or any(not isinstance(u,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or perm not in ('ro','rw') for u,perm in access.items()):
                 self.json({'error':'Assign at least one valid user access.'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
             if not set(access).issubset({u['name'] for u in nas_user_list()}):
                 self.json({'error':'Unknown NAS user.'},409);return
@@ -1016,7 +1019,7 @@ class Handler(BaseHTTPRequestHandler):
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
                 self.json({'error':'Invalid share name.'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
             if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
                 self.json({'error':'Only PiNAS-managed shares can be removed.'},404);return
@@ -1033,7 +1036,7 @@ class Handler(BaseHTTPRequestHandler):
             if type(public)!=bool or type(public_write)!=bool or (public_write and not public) or (public and access!={}):self.json({'error':'Invalid public sharing policy.'},400);return
             if not isinstance(access,dict) or (not public and not access) or len(access)>64 or any(not isinstance(k,str) or v not in ('ro','rw') for k,v in access.items()):
                 self.json({'error':'Assign at least one user Read Only or Read & Write access.'},400);return
-            if not isinstance(admin_password,str) or not verify(admin_password,cfg.get('admin_password','')):
+            if not isinstance(admin_password,str) or not verify(admin_password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
             if not storage_is_ready():self.json({'error':'A mounted, persistent data filesystem is required.'},409);return
             valid_users={u['name'] for u in nas_user_list()}
@@ -1049,7 +1052,7 @@ class Handler(BaseHTTPRequestHandler):
             password=data.get('admin_password')
             if s.get('role')!='admin':self.json({'error':'Administrator required'},403);return
             if data.get('confirm')!='RESET SMB CONFIGURATION':self.json({'error':'Explicit confirmation required'},400);return
-            if not isinstance(password,str) or not verify(password,cfg.get('admin_password','')):
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
             try:
                 result=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-smb-reset','reset'],capture_output=True,text=True,timeout=45,check=True)
@@ -1550,6 +1553,12 @@ def main():
     relative=q.get('path','');target=safe_path(root,relative)
     writable=s['access'][user]=='rw'
     if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    if action=='delete':
+        # Validate the current Samba password while still privileged; all actual
+        # filesystem mutations below run with the user's restricted UID/GID.
+        password=q.get('password')
+        if not isinstance(password,str) or not 1<=len(password)<=256 or not hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)):
+            raise ValueError('Current account password is incorrect')
     drop(person)
     # All operations below run with the NAS user's UID/GID. Uploads are staged
     # in the destination directory, then published by an atomic rename.
@@ -1648,9 +1657,29 @@ def main():
         dest.mkdir(mode=0o770);print('{"ok":true}');return
     if action=='delete':
         if target==root:raise ValueError('Cannot delete share root')
-        if target.is_dir():target.rmdir()
-        elif target.is_file():target.unlink()
-        else:raise ValueError('Not a regular file or empty folder')
+        base_stat=os.lstat(target)
+        if stat.S_ISLNK(base_stat.st_mode):raise ValueError('Symbolic links cannot be deleted via the web interface')
+        if stat.S_ISREG(base_stat.st_mode):
+            target.unlink()
+        elif stat.S_ISDIR(base_stat.st_mode):
+            # Full preflight: reject symlinks, filesystem boundaries and device nodes.
+            folders=[];files=[];count=0
+            for directory,dirs,names in os.walk(target,topdown=True,followlinks=False):
+                folder=pathlib.Path(directory)
+                details=os.lstat(folder)
+                if not stat.S_ISDIR(details.st_mode) or details.st_dev!=base_stat.st_dev:
+                    raise ValueError('Unsafe folder or mounted filesystem in deletion')
+                folders.append(folder)
+                for name in dirs+names:
+                    node=folder/name;details=os.lstat(node)
+                    if details.st_dev!=base_stat.st_dev or not (stat.S_ISDIR(details.st_mode) or stat.S_ISREG(details.st_mode)):
+                        raise ValueError('Deletion cannot cross filesystems or contain symbolic links/special files')
+                    count+=1
+                    if count>10000:raise ValueError('Folder contains more than 10,000 items; use SMB for large deletions')
+                    if stat.S_ISREG(details.st_mode):files.append(node)
+            for node in files:node.unlink()
+            for folder in reversed(folders):folder.rmdir()
+        else:raise ValueError('Only regular files and folders can be deleted')
         print('{"ok":true}');return
     if action=='download':
         if not target.is_file() or not stat.S_ISREG(target.stat().st_mode) or target.stat().st_size>3*1024*1024:raise ValueError('Only files up to 3 MB supported in this test build')
