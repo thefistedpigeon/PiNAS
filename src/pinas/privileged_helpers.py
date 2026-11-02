@@ -99,6 +99,8 @@ def main():
         except Exception as exc:
             if BACKUP.exists():
                 shutil.copy2(BACKUP,BASE)
+                # Restore the expanded module tree along with the launcher.
+                subprocess.run(['/usr/bin/python3',str(BASE),'--extract-modules'],timeout=30,check=False)
                 subprocess.run(['/usr/bin/systemctl','restart','pinas.service'],timeout=35,check=False)
             status('rolled_back','Update failed and previous application restored: '+str(exc)[:600])
             raise
