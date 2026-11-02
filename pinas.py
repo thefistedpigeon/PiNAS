@@ -709,7 +709,7 @@ function openMiniDLNA(){
    const config=data.settings||{},svc=data.service||{},shares=data.shares||[];
    const types=[['all','All media'],['audio','Music'],['video','Video'],['pictures','Pictures']];
    const configured=Array.isArray(config.folders)?config.folders:[];
-   content.innerHTML=`<p>Stream your music, pictures and videos over the local network using DLNA/UPnP AV.</p><div class="line"><strong>Installed</strong><span class="pill ${svc.active?'good':''}">${svc.active?'Running':'Stopped'} · ${svc.enabled?'Starts on boot':'Manual start'}</span></div><div class="dlna-controls"><button class="btn outline" data-dlna="start" ${svc.active?'disabled':''}>Start</button><button class="btn outline" data-dlna="stop" ${svc.active?'':'disabled'}>Stop</button><button class="btn outline" data-dlna="restart" ${svc.active?'':'disabled'}>Restart</button><button class="btn outline" data-dlna="rescan" ${svc.active?'':'disabled'}>Rescan</button><button class="btn outline" data-dlna="${svc.enabled?'disable':'enable'}">${svc.enabled?'Disable autostart':'Enable autostart'}</button></div><h3>Configuration</h3><form id="dlna-settings"><label class="field">Server name<input name="friendly_name" required maxlength="60" value="${esc(config.friendly_name||'PiNAS Media')}"></label><div class="dlna-fields"><label class="field">HTTP port<input name="port" type="number" min="1024" max="65535" required value="${Number(config.port||8200)}"></label><label class="field">Announcement interval (seconds)<input name="notify_interval" type="number" min="60" max="3600" required value="${Number(config.notify_interval||895)}"></label></div><label class="dlna-toggle"><input type="checkbox" name="inotify" ${config.inotify?'checked':''}> Automatically detect media changes (inotify)</label><h3>Media folders</h3><p class="small">Choose PiNAS shares to make available over DLNA. MiniDLNA must have filesystem permission to read the media; private share permissions are not changed automatically.</p><div id="dlna-folders"></div>${!shares.length?'<p class="hint">Create and mount a PiNAS network share before adding media folders.</p>':''}<div class="modal-actions"><button class="btn" type="submit">Save configuration</button></div></form><p class="small">Port ${Number(config.port||8200)} serves DLNA device information and transfers. No extra high-frequency background polling is used.</p><p id="dlna-message" role="status"></p>`;
+   content.innerHTML=`<p>Stream your music, pictures and videos over the local network using DLNA/UPnP AV.</p><div class="line"><strong>Installed</strong><span class="pill ${svc.active?'good':''}">${svc.active?'Running':'Stopped'} · ${svc.enabled?'Starts on boot':'Manual start'}</span></div><div class="dlna-controls"><button class="btn outline" data-dlna="start" ${svc.active?'disabled':''}>Start</button><button class="btn outline" data-dlna="stop" ${svc.active?'':'disabled'}>Stop</button><button class="btn outline" data-dlna="restart" ${svc.active?'':'disabled'}>Restart</button><button class="btn outline" data-dlna="rescan" ${svc.active?'':'disabled'}>Rescan</button><button class="btn outline" data-dlna="${svc.enabled?'disable':'enable'}">${svc.enabled?'Disable autostart':'Enable autostart'}</button></div><h3>Configuration</h3><form id="dlna-settings"><label class="field">Server name<input name="friendly_name" required maxlength="60" value="${esc(config.friendly_name||'PiNAS Media')}"></label><div class="dlna-fields"><label class="field">HTTP port<input name="port" type="number" min="1024" max="65535" required value="${Number(config.port||8200)}"></label><label class="field">Announcement interval (seconds)<input name="notify_interval" type="number" min="60" max="3600" required value="${Number(config.notify_interval||895)}"></label></div><label class="dlna-toggle"><input type="checkbox" name="inotify" ${config.inotify?'checked':''}> Automatically detect media changes (inotify)</label><h3>Media folders</h3><p class="small">Choose PiNAS shares to make available over DLNA. MiniDLNA must have filesystem permission to read the media; private share permissions are not changed automatically.</p><div id="dlna-folders"></div><label class="dlna-toggle"><input type="checkbox" name="grant_access" checked> Grant MiniDLNA read-only filesystem access to files in the selected shares</label><p class="small">This one-time permission update may take longer for large media libraries. It does not change SMB user permissions.</p>${!shares.length?'<p class="hint">Create and mount a PiNAS network share before adding media folders.</p>':''}<div class="modal-actions"><button class="btn" type="submit">Save configuration</button></div></form><p class="small">Port ${Number(config.port||8200)} serves DLNA device information and transfers. No extra high-frequency background polling is used.</p><p id="dlna-message" role="status"></p>`;
    const folderBox=content.querySelector('#dlna-folders');
    shares.forEach(share=>{
      const selected=configured.find(f=>f.share===share);
@@ -722,7 +722,7 @@ function openMiniDLNA(){
    content.querySelector('#dlna-settings').onsubmit=e=>{
      e.preventDefault();const form=e.currentTarget,values=new FormData(form),folders=[];
      folderBox.querySelectorAll('.dlna-share-row').forEach(row=>{if(row.querySelector('input').checked)folders.push({share:row.dataset.share,type:row.querySelector('select').value})});
-     command('configure',{friendly_name:values.get('friendly_name'),port:Number(values.get('port')),notify_interval:Number(values.get('notify_interval')),inotify:values.get('inotify')==='on',folders});
+     command('configure',{friendly_name:values.get('friendly_name'),port:Number(values.get('port')),notify_interval:Number(values.get('notify_interval')),inotify:values.get('inotify')==='on',folders,grant_access:values.get('grant_access')==='on'});
    };
  }
  load();overlay.querySelector('.minidlna-modal').focus();
@@ -1906,9 +1906,20 @@ def validate(data):
         seen.add(share);validated.append({'share':share,'type':kind})
     return {'friendly_name':name,'port':port,'notify_interval':interval,'inotify':ino,'folders':validated},choices
 
+def grant_read_access(paths):
+    # User-approved, read-only ACL grants for MiniDLNA. Never follow symlinks
+    # and never cross a mounted filesystem boundary within a share.
+    for root in paths:
+        for predicate,acl in (('f','u:minidlna:r--'),('d','u:minidlna:rx'),('d','d:u:minidlna:rx')):
+            run(['/usr/bin/find',root,'-xdev','-type',predicate,'-exec',
+                 '/usr/bin/setfacl','-m',acl,'{}','+'],timeout=240)
+
 def configure(data):
     if not installed():raise ValueError('Install MiniDLNA first')
     settings,choices=validate(data)
+    grant=data.get('grant_access',False)
+    if type(grant)!=bool:raise ValueError('Invalid permission choice')
+    if grant:grant_read_access([choices[f['share']] for f in settings['folders']])
     lines=['# Managed by PiNAS. Older configurations backed up separately.',
            'port='+str(settings['port']),
            'friendly_name='+settings['friendly_name'],
