@@ -65,10 +65,30 @@ def package_updates():
         return {'packages':packages,'truncated':len(packages)>=500}
     except (OSError,subprocess.TimeoutExpired) as exc:return {'error':str(exc),'packages':[]}
 
+def firmware_check():
+    """Read-only Raspberry Pi EEPROM status; no flashing or boot changes."""
+    if not Path('/proc/device-tree/model').exists():
+        return {'state':'unsupported','message':'Not Raspberry Pi hardware'}
+    try:
+        proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index','firmware-check'],capture_output=True,text=True,timeout=45,check=False)
+        if proc.returncode:
+            message=(proc.stderr or proc.stdout or '').strip()
+            return {'state':'error','message':message[-500:]}
+        output=proc.stdout
+        if 'BOOTLOADER: update available' in output or '*** UPDATE AVAILABLE ***' in output:
+            return {'state':'available','message':output[-800:]}
+        if 'BOOTLOADER: up to date' in output or 'BOOTLOADER: up-to-date' in output:
+            return {'state':'current','message':output[-800:]}
+        return {'state':'unknown','message':output[-800:]}
+    except (OSError,subprocess.TimeoutExpired) as exc:
+        return {'state':'error','message':str(exc)}
+
 def update_worker(operation='refresh'):
     try:
         proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index',operation],capture_output=True,text=True,timeout=3600 if operation=='upgrade' else 240,check=False)
+        firmware=firmware_check() if operation=='refresh' else None
         with UPDATE_LOCK:
+            if firmware is not None:UPDATE_STATUS['firmware']=firmware
             UPDATE_STATUS.update(running=False,operation=operation,**({'last_install':int(time.time())} if operation=='upgrade' else {'last_check':int(time.time())}),error='' if proc.returncode==0 else (proc.stderr or 'APT operation failed')[-800:],output=((proc.stdout or '')+'\n'+(proc.stderr or ''))[-3500:])
     except (OSError,subprocess.TimeoutExpired) as exc:
         with UPDATE_LOCK:UPDATE_STATUS.update(running=False,operation=operation,error=str(exc))
