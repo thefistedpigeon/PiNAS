@@ -484,7 +484,7 @@ def hardware():
     base.update(temperature=temp,throttle=command('vcgencmd','get_throttled',timeout=2),memory_total=mem.get('MemTotal',0),memory_used=max(0,mem.get('MemTotal',0)-mem.get('MemAvailable',0)),load=list(os.getloadavg()),version=VERSION)
     model=base['model'];ram=base['memory_total'];profile='performance' if 'Raspberry Pi 5' in model and ram>=3*1024**3 else 'enhanced' if 'Raspberry Pi 4' in model and ram>=2*1024**3 else 'essential'
     base['profile']=profile
-    base['capabilities']={'samba':True,'raid':True,'minidlna':True,'curated_apps':profile!='essential','jellyfin':profile=='performance'}
+    base['capabilities']={'samba':True,'raid':True,'gerbera':True,'curated_apps':profile!='essential','jellyfin':profile=='performance'}
     return base
 
 PAGE=r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PiNAS · Raspberry Pi NAS</title><style>
@@ -1821,7 +1821,7 @@ if __name__=='__main__':main()
 """
 
 NAS_GERBERA_HELPER = r"""#!/usr/bin/env python3
-# Root-only narrow ReadyMedia lifecycle and settings broker.
+# Root-only narrow Gerbera lifecycle and settings broker.
 import json,os,pathlib,re,subprocess,sys,tempfile,time,xml.etree.ElementTree as ET
 CONF=pathlib.Path('/etc/gerbera/config.xml')
 SHARES=pathlib.Path('/var/lib/pinas/shares.json')
@@ -1923,7 +1923,6 @@ def configure(data):
     settings,choices=validate(data)
     grant=data.get('grant_access',False)
     if type(grant)!=bool:raise ValueError('Invalid permission choice')
-    if grant:grant_read_access([choices[f['share']] for f in settings['folders']])
     if not CONF.exists():raise ValueError('Gerbera config.xml not found')
     tree=ET.parse(CONF);root=tree.getroot()
     server=root.find('server');imp=root.find('import')
@@ -1947,6 +1946,7 @@ def configure(data):
         opts={'location':choices[entry['share']],'mode':'inotify' if settings['inotify'] else 'timed','recursive':'yes','hidden-files':'no'}
         if not settings['inotify']:opts['interval']=str(settings['notify_interval'])
         ET.SubElement(autoscan,'directory',opts)
+    if grant:grant_read_access([choices[f['share']] for f in settings['folders']])
     previous=CONF.read_text() if CONF.exists() else None
     oldstate=STATE.read_text() if STATE.exists() else None
     backups=CONF.parent/'pinas-gerbera-backups'
