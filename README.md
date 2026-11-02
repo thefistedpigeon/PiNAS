@@ -1,48 +1,162 @@
 # PiNAS
 
-A lightweight, web-based NAS management application for Raspberry Pi OS and related Debian-based systems.
+**PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Development status:** Release candidate RC16.0. This software is under active development; test carefully before using it with important data.
+> **Development status:** Active release-candidate development. Features are being tested on Raspberry Pi hardware and are not yet a stable production release. Keep independent backups of important files, particularly before changing storage or RAID configurations.
 
-## Current capabilities
+## Features
 
-- Browser-based administration and NAS user file access
-- Local user accounts and Samba share management
-- Storage discovery and non-destructive adoption of supported filesystems
-- Existing RAID array discovery and monitoring
-- OS update checking, installation and simple automatic scheduling
-- HTTPS and authenticated administrative actions
-- Basic system health information
+### Overview
+- Per-disk storage usage bars showing disk name, used and available space. System/boot storage is excluded from NAS disk listings.
+- Compact Disks / Shares / Users counters with links to their respective pages.
+- CPU activity history with configurable sampling and history length.
+- Memory usage and CPU-temperature doughnut charts.
+- Raspberry Pi model, hostname, throttling status, uptime, OS, kernel and load average in System health.
+- NAS service health and reboot warnings, checked when Overview is opened or refreshed.
 
-**Not yet supported:** Destructive disk formatting/wiping and RAID array creation through the UI. Do not rely on PiNAS as your only backup.
+### Storage and RAID
+- Discover attached drives and supported **ext4, XFS and Btrfs** filesystems, including additional Btrfs detection where required.
+- Inspect mounts and adopt existing formatted drives, with persistent mounting and applicable filesystem options.
+- Access RAID management and discovery using `mdadm` when supported by the hardware and connected drives.
+- Storage operations with confirmation and appropriate administrative safeguards.
 
-## Install or update
+**Caution:** Destructive operations can cause permanent data loss. Confirm drive identities, RAID membership and available backups before applying changes. Not every filesystem or RAID workflow has been validated on all hardware.
 
-Download `pinas.py` from this repository and run on the target machine:
+### Users, shares and files
+- Create and manage NAS users and Samba (SMB) shares.
+- Configure share access for selected users.
+- Browser-based file explorer for authorised share users, with folder creation, upload, rename, delete and refresh.
+- Shared files are accessible through SMB and the web file explorer, subject to their permissions.
+
+### System updates
+- **Check for updates** refreshes APT package information and checks Raspberry Pi EEPROM bootloader firmware status where the hardware and `rpi-eeprom-update` support it.
+- Review and install available **OS package updates**.
+- Configure basic automatic OS update schedules.
+- View reboot-required and service-health information.
+
+**Firmware checking is read-only.** PiNAS does not currently install or flash EEPROM firmware through the interface; the check is distinct from ordinary APT upgrades.
+
+### Settings
+A wider Settings popup with independently expandable sections, **collapsed by default**:
+- **Appearance:** Light or Dark theme and font size.
+- **Device storage:** System storage capacity and usage.
+- **CPU monitoring:** Sampling interval and history length.
+- **Security:** HTTPS information and session idle timeout.
+- **Login screen:** Upload or remove the background image.
+- **Administration:** Reset PiNAS-managed SMB configuration with safeguards.
+- **Update PiNAS:** Upload a standalone PiNAS Python release to update the application.
+
+### Security and administration
+- HTTPS web access (with a locally generated self-signed certificate by default).
+- Administrator authentication and password confirmation for protected operations.
+- Privileged helper commands restricted to supported operations.
+- Separation between administration and share-user access.
+
+## Install
+
+Download the **standalone `pinas.py`** from the intended PiNAS branch or release onto your Raspberry Pi, then run:
+
+```bash
+sudo python3 pinas.py --install --lan
+```
+
+This installs the required NAS dependencies through APT unless they are deliberately skipped. If the required packages are already installed, use:
 
 ```bash
 sudo python3 pinas.py --install --lan --skip-packages
 ```
 
-The installer is intended for supported Debian-family systems. Review the source and keep backups before deploying. By default, the web interface uses HTTPS on port 8765; the initial self-signed certificate may trigger a browser warning.
+PiNAS uses **HTTPS port 8765 by default**. Open `https://<pi-ip-address>:8765` in a browser on your local network; your browser may warn about the self-signed certificate. Keep PiNAS on a trusted network, not exposed directly to the internet.
 
-## Development workflow
+The installer configures a systemd service and extracts its bundled source sections under `/opt/pinas/modules/`. Existing configuration and NAS data are intended to be preserved during application updates.
 
-- `main`: latest reviewed and tested baseline
-- `develop`: ongoing release-candidate development
-- Feature/fix branches: proposed changes reviewed through pull requests
-- Releases: tagged, downloadable single-file `pinas.py` builds once validated
+### Update PiNAS
 
-## Roadmap
+There are two supported deployment paths for the **same standalone `pinas.py`**:
 
-- **RC16.1:** SMART disk health and temperatures
-- **RC16.2:** NAS service health and warnings
-- **RC16.3:** Restart, shutdown and maintenance controls
-- **RC16.4:** UI consistency and regression pass
-- **RC17:** Application self-update and backup/rollback safeguards
+**Command line** — obtain the newer `pinas.py` and run:
 
-Hardware-dependent features must be tested on Raspberry Pi hardware before being considered validated.
+```bash
+sudo python3 pinas.py --install --lan --skip-packages
+```
+
+Omit `--skip-packages` if system dependencies also need installing.
+
+**WebUI** — open **Settings → Update PiNAS**, expand the section, select the trusted `pinas.py` release and confirm the update with the administrator password.
+
+The WebUI updater checks the uploaded file's size, SHA-256 integrity, Python syntax and expected PiNAS package structure. It then schedules a privileged update process, retains a previous application copy, replaces the application, extracts the modules and restarts the service; it attempts rollback if installation fails.
+
+**Important:** SHA-256 here verifies integrity, **not publisher authenticity**. Only install code from a source you trust. When moving from an older pre-modular installation or when updater permissions change, a one-time command-line installation may be required to register the current privileged helpers.
+
+### Verify an installation
+
+```bash
+systemctl is-active pinas.service
+ls -lah /opt/pinas/modules/
+```
+
+A modular build should contain these five extracted files:
+
+```text
+/opt/pinas/
+├── pinas.py
+└── modules/
+    ├── core.py
+    ├── web_ui.py
+    ├── http_api.py
+    ├── privileged_helpers.py
+    └── installer.py
+```
+
+If the standalone modular release is installed but the directory is missing, extract its embedded sections without reinstalling NAS dependencies:
+
+```bash
+sudo python3 /opt/pinas/pinas.py --extract-modules
+```
+
+## Development and release structure
+
+PiNAS development now uses logically separated source sections:
+
+```text
+src/pinas/
+├── core.py
+├── web_ui.py
+├── http_api.py
+├── privileged_helpers.py
+└── installer.py
+
+tools/build_release.py
+pinas.py
+```
+
+The Python-standard-library release builder combines the source sections into a **single downloadable, self-extracting `pinas.py`**:
+
+```bash
+python3 tools/build_release.py
+python3 tools/build_release.py --check
+python3 -m py_compile pinas.py
+```
+
+Edit the files in `src/pinas/` and regenerate `pinas.py`; **do not maintain the generated release file independently**.
+
+**Architecture note:** These files are currently ordered source sections executed in a shared Python namespace for compatibility. They are extracted during installation but are not yet fully independent, importable runtime modules. The standalone bundled release remains the application entry point.
+
+### Branches
+
+- `main`: reviewed/tested baseline.
+- `develop`: current release-candidate development.
+- Feature and fix branches: proposed changes reviewed using pull requests.
+
+## Scope and known limitations
+
+PiNAS intentionally prioritises simple NAS functionality and Raspberry Pi efficiency over container orchestration and heavyweight applications. The former **Applications** page and MiniDLNA integration were removed; a dedicated **Media Server** page may return once a reliable implementation has been tested.
+
+- EEPROM firmware **installation** through the UI is not implemented; checking only.
+- The modular source structure has not yet been fully refactored into independently importable Python modules.
+- Disk, RAID, permissions and update paths should be tested on the specific Raspberry Pi model and filesystem before use with valuable data.
+- Application backup/rollback is not a substitute for backing up NAS data.
 
 ## Licence
 
-No licence has been selected yet. Repository visibility and copyright remain with the owner.
+No licence has been selected yet. Repository visibility does not itself grant permission to reuse or redistribute the code.
