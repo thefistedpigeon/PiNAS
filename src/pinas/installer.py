@@ -1,3 +1,16 @@
+def expand_modules(target):
+    """Write embedded modules to a versioned directory without changing NAS data."""
+    if os.geteuid()!=0:raise PermissionError('Root required')
+    directory=target/'modules'
+    directory.mkdir(mode=0o755,parents=True,exist_ok=True)
+    for name,source in PINAS_SOURCE_PARTS.items():
+        if not re.fullmatch(r'[a-z_]+\.py',name):raise ValueError('Invalid module name')
+        destination=directory/name
+        tmp=directory/(name+'.new')
+        tmp.write_text(source,encoding='utf-8')
+        os.chmod(tmp,0o644)
+        os.replace(tmp,destination)
+
 def install(args):
     if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
     if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
@@ -13,6 +26,7 @@ def install(args):
     first_install=not Path('/opt/pinas/pinas.py').exists()
     target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
+    expand_modules(target)
     if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
         subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
     DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)
@@ -121,7 +135,11 @@ def install(args):
 def main():
     ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
     ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
+    ap.add_argument('--extract-modules',action='store_true',help=argparse.SUPPRESS)
     a=ap.parse_args()
+    if a.extract_modules:
+        if os.geteuid()!=0:sys.exit('Root required')
+        expand_modules(Path('/opt/pinas'));return
     if a.install:install(a);return
     if a.serve:
         if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
@@ -135,4 +153,3 @@ def main():
         print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
         threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
     ap.print_help()
-if __name__=='__main__':main()
