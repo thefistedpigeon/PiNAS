@@ -1553,6 +1553,12 @@ def main():
     relative=q.get('path','');target=safe_path(root,relative)
     writable=s['access'][user]=='rw'
     if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
+    if action=='delete':
+        # Validate the current Samba password while still privileged; all actual
+        # filesystem mutations below run with the user's restricted UID/GID.
+        password=q.get('password')
+        if not isinstance(password,str) or not 1<=len(password)<=256 or not hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)):
+            raise ValueError('Current account password is incorrect')
     drop(person)
     # All operations below run with the NAS user's UID/GID. Uploads are staged
     # in the destination directory, then published by an atomic rename.
@@ -1650,9 +1656,6 @@ def main():
         if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
         dest.mkdir(mode=0o770);print('{"ok":true}');return
     if action=='delete':
-        password=q.get('password')
-        if not isinstance(password,str) or not 1<=len(password)<=256 or not hmac.compare_digest(md4(password.encode('utf-16le')),samba_hash(user)):
-            raise ValueError('Current account password is incorrect')
         if target==root:raise ValueError('Cannot delete share root')
         base_stat=os.lstat(target)
         if stat.S_ISLNK(base_stat.st_mode):raise ValueError('Symbolic links cannot be deleted via the web interface')
