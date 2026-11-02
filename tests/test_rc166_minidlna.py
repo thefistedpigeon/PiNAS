@@ -43,6 +43,19 @@ class MiniDLNATests(unittest.TestCase):
         self.assertIn("u:minidlna:r--",helper)
         self.assertIn("d:u:minidlna:rx",helper)
 
+    def test_noninteractive_install_and_diagnostics(self):
+        helper=EMBEDDED['NAS_MINIDLNA_HELPER']
+        self.assertIn("'DEBIAN_FRONTEND':'noninteractive'",helper)
+        self.assertIn("'Dpkg::Use-Pty=0'",helper)
+        self.assertIn("p.stdout.strip(),p.stderr.strip()",helper)
+        self.assertIn("[-5000:]",helper)
+
+    def test_media_card_icon(self):
+        page=EMBEDDED['PAGE']
+        self.assertIn('class="app-card-title"',page)
+        self.assertIn('viewBox="0 0 24 24"',page)
+        self.assertIn('.app-card-title{display:flex;align-items:center;gap:12px}',page)
+
     def test_ui_install_and_configuration(self):
         page=EMBEDDED['PAGE']
         self.assertIn("function openMiniDLNA()",page)
