@@ -1849,7 +1849,7 @@ def validate(device):
     for n in children:
         p=n.get('path')
         if p:
-            for key in ('UUID','PARTUUID'):
+            for key in ('UUID','PARTUUID','LABEL'):
                 value=run('blkid','-s',key,'-o','value',p,check=False)
                 if value:identifiers.add(key+'='+value)
     fstab=pathlib.Path('/etc/fstab').read_text().splitlines()
@@ -1867,7 +1867,9 @@ def validate(device):
             if isinstance(item,dict) and (item.get('volume') in identifiers or
                                           item.get('volume_label') in identifiers):
                 raise ValueError('Disk belongs to a PiNAS share; remove the share configuration first')
-    # Refuse active open handles, holders, and unknown device stacks.
+    # Refuse device holders and unknown device stacks. Busy partitions will also
+    # be rejected by the kernel and filesystem utilities.
+    # No force-unmount, recursive removal, or automatic share deletion is permitted.
     for n in children:
         name=n.get('name')
         if not isinstance(name,str) or not re.fullmatch('[A-Za-z0-9_.!+-]+',name):
@@ -1886,7 +1888,6 @@ def main():
         raise ValueError('Invalid disk operation or filesystem')
     if request.get('confirmation')!=device:
         raise ValueError('Device confirmation mismatch')
-    _,children=validate(device)
     # Re-evaluate immediately before the first destructive command.
     _,children=validate(device)
     for part in reversed(children[1:]):
