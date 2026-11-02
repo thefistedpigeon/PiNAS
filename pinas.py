@@ -1739,6 +1739,137 @@ def main():
 if __name__=='__main__':main()
 """
 
+NAS_DESTRUCTIVE_HELPER = r"""#!/usr/bin/env python3
+# Restricted block-device destructive broker: no arbitrary paths or commands.
+import json, os, pathlib, re, subprocess, sys, time
+
+def run(*args, timeout=30, check=True):
+    result=subprocess.run(list(args),capture_output=True,text=True,timeout=timeout)
+    if check and result.returncode:
+        raise ValueError((result.stderr or result.stdout or 'Storage operation failed')[-500:])
+    return result.stdout.strip()
+
+def nodes():
+    roots=json.loads(run('lsblk','-J','-b','-o','NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME,MAJ:MIN')).get('blockdevices',[])
+    if not isinstance(roots,list) or not roots:raise ValueError('Unable to inspect block devices')
+    return roots
+
+def flatten(root):
+    yield root
+    for child in root.get('children') or []:
+        yield from flatten(child)
+
+def validate(device):
+    if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_.-]{1,70}',device):
+        raise ValueError('Select a physical disk')
+    path=pathlib.Path(device)
+    if not path.is_block_device() or str(path.resolve())!=device:
+        raise ValueError('Noncanonical or missing block device')
+    roots=nodes()
+    disk=next((d for d in roots if d.get('path')==device and d.get('type')=='disk'),None)
+    if disk is None or disk.get('ro'):raise ValueError('Not an eligible writable whole disk')
+    name=disk.get('name','')
+    if name.startswith(('loop','ram','zram','sr','fd','nbd','md','dm-')):
+        raise ValueError('Virtual and RAID disks are not eligible')
+    children=list(flatten(disk))
+    if any(n.get('type') not in ('disk','part') for n in children):
+        raise ValueError('RAID, LVM, encrypted and complex volumes are protected')
+    if any(n.get('ro') for n in children):raise ValueError('Read-only device or partition')
+    if any(m for n in children for m in n.get('mountpoints') or [] if m):
+        raise ValueError('Disk contains mounted filesystems; unmount them first')
+    # Conservative fail-closed system check: root must be detected in lsblk.
+    allnodes=[n for r in roots for n in flatten(r)]
+    if not any('/' in (n.get('mountpoints') or []) for n in allnodes):
+        raise ValueError('Unable to identify operating-system disk safely')
+    for n in children:
+        if (n.get('fstype') or '').lower() in (
+            'linux_raid_member','lvm2_member','crypto_luks','swap','zfs_member','bcache',
+            'isw_raid_member','ddf_raid_member'):
+            raise ValueError('RAID, swap and complex volume members are protected')
+    majors={str(n.get('maj:min')) for n in children}
+    for mount in ('/','/boot','/boot/firmware','/boot/efi'):
+        source=run('findmnt','-n','-o','MAJ:MIN','--target',mount,check=False)
+        if source and source in majors:raise ValueError('System disk is protected')
+    swaps=pathlib.Path('/proc/swaps').read_text().splitlines()[1:]
+    if any(row.split() and (row.split()[0] in {n.get('path') for n in children}) for row in swaps):
+        raise ValueError('Active swap is protected')
+    # Reject any fstab reference to this disk, whether by UUID, path or PARTUUID.
+    identifiers={str(n.get('path')) for n in children}
+    for n in children:
+        for key in ('uuid','partuuid'):
+            if n.get(key):identifiers.add(('UUID=' if key=='uuid' else 'PARTUUID=')+str(n[key]))
+    for n in children:
+        p=n.get('path')
+        if p:
+            for key in ('UUID','PARTUUID'):
+                value=run('blkid','-s',key,'-o','value',p,check=False)
+                if value:identifiers.add(key+'='+value)
+    fstab=pathlib.Path('/etc/fstab').read_text().splitlines()
+    for line in fstab:
+        line=line.strip()
+        if not line or line.startswith('#'):continue
+        cols=line.split()
+        if cols and (cols[0] in identifiers or cols[0].startswith('/dev/disk/by-') and
+                     pathlib.Path(cols[0]).resolve().as_posix() in identifiers):
+            raise ValueError('Disk has an /etc/fstab entry; remove its persistent mount first')
+    shares=pathlib.Path('/var/lib/pinas/shares.json')
+    if shares.exists():
+        records=json.loads(shares.read_text())
+        for item in records:
+            if isinstance(item,dict) and (item.get('volume') in identifiers or
+                                          item.get('volume_label') in identifiers):
+                raise ValueError('Disk belongs to a PiNAS share; remove the share configuration first')
+    # Refuse active open handles, holders, and unknown device stacks.
+    for n in children:
+        name=n.get('name')
+        if not isinstance(name,str) or not re.fullmatch('[A-Za-z0-9_.!+-]+',name):
+            raise ValueError('Invalid device topology')
+        holders=pathlib.Path('/sys/class/block')/name/'holders'
+        if not holders.is_dir() or any(holders.iterdir()):
+            raise ValueError('Device has active holders or cannot be inspected')
+    return disk,children
+
+def main():
+    if os.geteuid()!=0 or sys.argv[1:]!=['execute']:
+        raise ValueError('Unsupported operation')
+    request=json.loads(sys.stdin.read(4097))
+    action=request.get('action');device=request.get('device');fs=request.get('fs')
+    if action not in ('wipe','format') or (action=='format' and fs not in ('ext4','xfs','btrfs')):
+        raise ValueError('Invalid disk operation or filesystem')
+    if request.get('confirmation')!=device:
+        raise ValueError('Device confirmation mismatch')
+    _,children=validate(device)
+    # Re-evaluate immediately before the first destructive command.
+    _,children=validate(device)
+    for part in reversed(children[1:]):
+        run('wipefs','-a',part['path'],timeout=40)
+    run('wipefs','-a',device,timeout=40)
+    if action=='wipe':
+        run('blockdev','--rereadpt',device,timeout=15,check=False)
+        print(json.dumps({'ok':True,'action':'wipe','device':device}));return
+    run('parted','-s','-a','optimal',device,'mklabel','gpt','mkpart','primary','1MiB','100%',timeout=40)
+    run('udevadm','settle',timeout=20,check=False)
+    partition=None
+    for _ in range(10):
+        listing=nodes()
+        parent=next((d for d in listing if d.get('path')==device and d.get('type')=='disk'),None)
+        parts=[n for n in parent.get('children') or [] if n.get('type')=='part'] if parent else []
+        if len(parts)==1:
+            partition=parts[0].get('path');break
+        time.sleep(.3)
+    if not partition or not pathlib.Path(partition).is_block_device():
+        raise ValueError('Partition was created but not discovered; inspect disk before retrying')
+    if fs=='ext4':run('mkfs.ext4','-F',partition,timeout=240)
+    elif fs=='xfs':run('mkfs.xfs','-f',partition,timeout=240)
+    else:run('mkfs.btrfs','-f',partition,timeout=240)
+    uid=run('blkid','-s','UUID','-o','value',partition)
+    print(json.dumps({'ok':True,'action':'format','device':device,'partition':partition,'fs':fs,'uuid':uid}))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
 NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
 
 SMART_HEALTH_HELPER = """#!/usr/bin/env python3
