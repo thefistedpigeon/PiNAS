@@ -1969,7 +1969,7 @@ def main():
     if action=='install':
         if not installed():
             apt_env=os.environ.copy()
-            apt_env.update({'DEBIAN_FRONTEND':'noninteractive','DEBIAN_PRIORITY':'critical','APT_LISTCHANGES_FRONTEND':'none','NEEDRESTART_MODE':'a'})
+            apt_env.update({'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','DEBIAN_FRONTEND':'noninteractive','DEBIAN_PRIORITY':'critical','APT_LISTCHANGES_FRONTEND':'none','NEEDRESTART_MODE':'a'})
             try:
                 run(['/usr/bin/apt-get','install','-y','-o','Dpkg::Use-Pty=0','minidlna'],timeout=240,env=apt_env)
             except (ValueError,subprocess.TimeoutExpired) as exc:
@@ -2051,8 +2051,12 @@ def install(args):
     if 'debian' not in osinfo.lower() and 'raspbian' not in osinfo.lower():sys.exit('Requires Raspberry Pi OS / Debian family')
     if not args.skip_packages:
         print('Installing NAS dependencies (requires network and may take time)...',flush=True)
-        subprocess.run(['apt-get','update'],check=True)
-        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True)
+        # APT child scripts (notably adduser's taint-mode Perl code) must not
+        # inherit an unsafe PATH from sudo, the caller's shell, or a venv.
+        apt_env=os.environ.copy()
+        apt_env.update({'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','DEBIAN_FRONTEND':'noninteractive','DEBIAN_PRIORITY':'critical','APT_LISTCHANGES_FRONTEND':'none'})
+        subprocess.run(['apt-get','update'],check=True,env=apt_env)
+        subprocess.run(['apt-get','install','-y','samba','xfsprogs','btrfs-progs','mdadm','parted','util-linux','e2fsprogs','avahi-daemon','acl','openssl'],check=True,env=apt_env)
     # Only take ownership of Samba automatically on a genuinely new PiNAS installation.
     first_install=not Path('/opt/pinas/pinas.py').exists()
     target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
