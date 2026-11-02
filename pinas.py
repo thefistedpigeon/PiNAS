@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='0.6.0-rc16.5'
+VERSION='0.6.0-rc16.6'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -1834,8 +1834,8 @@ def run(args,timeout=25,check=True):
     return p
 
 def installed():
-    p=run(['/usr/bin/dpkg-query','-W','minidlna'],check=False)
-    return p.returncode==0 and 'minidlna' in p.stdout
+    p=run(['/usr/bin/dpkg-query','-W','-f=${Status}','minidlna'],check=False)
+    return p.returncode==0 and p.stdout.strip()=='install ok installed'
 
 def service_state():
     def state(arg):
@@ -1971,12 +1971,15 @@ def main():
         print(json.dumps(configure(request.get('settings'))));return
     elif action in ('start','stop','restart'):
         if not installed():raise ValueError('MiniDLNA is not installed')
+        if action in ('start','restart') and not read_config().get('folders'):
+            raise ValueError('Select and save at least one media share first')
         run(['/usr/bin/systemctl',action,SERVICE],timeout=50)
     elif action=='rescan':
         if not installed():raise ValueError('MiniDLNA is not installed')
         run(['/usr/bin/systemctl','kill','-s','HUP',SERVICE],timeout=20)
     elif action=='enable':
         if not installed():raise ValueError('MiniDLNA is not installed')
+        if not read_config().get('folders'):raise ValueError('Select and save a media share first')
         run(['/usr/bin/systemctl','enable','--now',SERVICE],timeout=50)
     elif action=='disable':
         if not installed():raise ValueError('MiniDLNA is not installed')
