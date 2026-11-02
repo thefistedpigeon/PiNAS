@@ -101,7 +101,7 @@ def install(args):
     apt_helper.write_text(APT_INDEX_HELPER)
     os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
     apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
-    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
+    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index firmware-check, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
     os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
         apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
