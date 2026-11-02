@@ -1739,6 +1739,159 @@ def main():
 if __name__=='__main__':main()
 """
 
+NAS_MINIDLNA_HELPER = r"""#!/usr/bin/env python3
+# Root-only narrow ReadyMedia lifecycle and settings broker.
+import json,os,pathlib,re,subprocess,sys,tempfile,time
+CONF=pathlib.Path('/etc/minidlna.conf')
+SHARES=pathlib.Path('/var/lib/pinas/shares.json')
+STATE=pathlib.Path('/var/lib/pinas/minidlna.json')
+SERVICE='minidlna'
+
+def run(args,timeout=25,check=True):
+    p=subprocess.run(args,capture_output=True,text=True,timeout=timeout)
+    if check and p.returncode:raise ValueError((p.stderr or p.stdout or 'Command failed')[-600:])
+    return p
+
+def installed():
+    p=run(['/usr/bin/dpkg-query','-W','minidlna'],check=False)
+    return p.returncode==0
+
+def service_state():
+    def state(arg):
+        p=run(['/usr/bin/systemctl',arg,SERVICE],check=False)
+        return p.stdout.strip() if p.returncode==0 else 'inactive'
+    return {'active':state('is-active')=='active','enabled':state('is-enabled')=='enabled'}
+
+def atomic(path,data,mode=0o644):
+    fd,tmp=tempfile.mkstemp(prefix='.pinas-',dir=str(path.parent))
+    try:
+        os.fchmod(fd,mode)
+        with os.fdopen(fd,'w') as f:
+            f.write(data);f.flush();os.fsync(f.fileno())
+        os.replace(tmp,path)
+    finally:
+        if os.path.exists(tmp):os.unlink(tmp)
+
+def managed_shares():
+    if not SHARES.exists():return {}
+    entries=json.loads(SHARES.read_text())
+    result={}
+    for item in entries:
+        if not isinstance(item,dict):continue
+        name=item.get('name');device=item.get('volume')
+        if not isinstance(name,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9 _-]{0,31}',name):continue
+        if not isinstance(device,str) or not device.startswith('/dev/'):continue
+        p=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device],check=False)
+        targets=p.stdout.strip().splitlines()
+        if p.returncode or len(targets)!=1:continue
+        mount=pathlib.Path(targets[0]).resolve(strict=True)
+        if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):continue
+        folder=mount/'PiNAS Shares'/name
+        if folder.is_symlink() or not folder.is_dir():continue
+        result[name]=str(folder)
+    return result
+
+def read_config():
+    result={'friendly_name':'PiNAS Media','port':8200,'inotify':True,'notify_interval':895,'folders':[]}
+    if STATE.exists():
+        try:
+            data=json.loads(STATE.read_text())
+            if isinstance(data,dict):result.update({k:data[k] for k in result if k in data})
+        except (OSError,ValueError):pass
+    return result
+
+def status():
+    present=installed()
+    return {'installed':present,'service':service_state() if present else {'active':False,'enabled':False},
+            'settings':read_config(),'shares':sorted(managed_shares())}
+
+def validate(data):
+    if not isinstance(data,dict):raise ValueError('Invalid configuration')
+    name=data.get('friendly_name')
+    port=data.get('port');interval=data.get('notify_interval');ino=data.get('inotify')
+    folders=data.get('folders')
+    if not isinstance(name,str) or not 1<=len(name)<=60 or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 _.-]{0,59}',name):
+        raise ValueError('Invalid media server name')
+    if type(port)!=int or not 1024<=port<=65535:raise ValueError('Port must be between 1024 and 65535')
+    if type(interval)!=int or not 60<=interval<=3600:raise ValueError('Notification interval must be 60–3600 seconds')
+    if type(ino)!=bool:raise ValueError('Invalid automatic scan setting')
+    if not isinstance(folders,list) or len(folders)>12:raise ValueError('Choose at most 12 media folders')
+    choices=managed_shares();validated=[];seen=set()
+    for entry in folders:
+        if not isinstance(entry,dict):raise ValueError('Invalid media folder')
+        share=entry.get('share');kind=entry.get('type')
+        if share not in choices or kind not in ('all','audio','video','pictures') or share in seen:
+            raise ValueError('Media folders must be unique, online PiNAS shares')
+        seen.add(share);validated.append({'share':share,'type':kind})
+    return {'friendly_name':name,'port':port,'notify_interval':interval,'inotify':ino,'folders':validated},choices
+
+def configure(data):
+    if not installed():raise ValueError('Install MiniDLNA first')
+    settings,choices=validate(data)
+    lines=['# Managed by PiNAS. Older configurations backed up separately.',
+           'port='+str(settings['port']),
+           'friendly_name='+settings['friendly_name'],
+           'inotify='+('yes' if settings['inotify'] else 'no'),
+           'notify_interval='+str(settings['notify_interval']),
+           'db_dir=/var/cache/minidlna',
+           'log_dir=/var/log/minidlna']
+    prefixes={'all':'','audio':'A,','video':'V,','pictures':'P,'}
+    for entry in settings['folders']:
+        lines.append('media_dir='+prefixes[entry['type']]+choices[entry['share']])
+    lines.append('')
+    previous=CONF.read_text() if CONF.exists() else None
+    oldstate=STATE.read_text() if STATE.exists() else None
+    backups=CONF.parent/'pinas-minidlna-backups'
+    backups.mkdir(mode=0o700,exist_ok=True)
+    if previous is not None:
+        backup=backups/('minidlna-'+str(time.time_ns())+'.conf')
+        atomic(backup,previous,0o600)
+    try:
+        atomic(CONF,'\n'.join(lines))
+        atomic(STATE,json.dumps(settings,indent=2),0o600)
+        run(['/usr/bin/systemctl','restart',SERVICE],timeout=45)
+    except Exception:
+        if previous is None:CONF.unlink(missing_ok=True)
+        else:atomic(CONF,previous)
+        if oldstate is None:STATE.unlink(missing_ok=True)
+        else:atomic(STATE,oldstate,0o600)
+        try:run(['/usr/bin/systemctl','restart',SERVICE],timeout=45,check=False)
+        except Exception:pass
+        raise
+    return status()
+
+def main():
+    if os.geteuid()!=0:raise ValueError('Root required')
+    if sys.argv[1:]==['status']:
+        print(json.dumps(status()));return
+    if sys.argv[1:]!=['action']:raise ValueError('Unsupported operation')
+    raw=sys.stdin.read(8193)
+    if len(raw)>8192:raise ValueError('Request too large')
+    request=json.loads(raw);action=request.get('action')
+    if action=='install':
+        if not installed():run(['/usr/bin/apt-get','install','-y','minidlna'],timeout=240)
+        run(['/usr/bin/systemctl','disable','--now',SERVICE],timeout=40,check=False)
+    elif action=='configure':
+        print(json.dumps(configure(request.get('settings'))));return
+    elif action in ('start','stop','restart'):
+        if not installed():raise ValueError('MiniDLNA is not installed')
+        run(['/usr/bin/systemctl',action,SERVICE],timeout=50)
+    elif action=='rescan':
+        if not installed():raise ValueError('MiniDLNA is not installed')
+        run(['/usr/bin/systemctl','kill','-s','HUP',SERVICE],timeout=20)
+    elif action=='enable':
+        if not installed():raise ValueError('MiniDLNA is not installed')
+        run(['/usr/bin/systemctl','enable','--now',SERVICE],timeout=50)
+    elif action=='disable':
+        if not installed():raise ValueError('MiniDLNA is not installed')
+        run(['/usr/bin/systemctl','disable','--now',SERVICE],timeout=50)
+    else:raise ValueError('Unsupported MiniDLNA operation')
+    print(json.dumps(status()))
+if __name__=='__main__':
+    try:main()
+    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)
+"""
+
 NAS_STORAGE_HELPER='#!/usr/bin/env python3\n"""PiNAS RC13 restricted, non-destructive storage adoption helper."""\nimport json,os,pathlib,re,subprocess,sys,uuid\nfrom pathlib import Path\n\ndef run(*args,timeout=15):\n    p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)\n    if p.returncode:raise ValueError((p.stderr or \'Storage command failed\').strip()[-500:])\n    return p.stdout.strip()\n\ndef main():\n    if os.geteuid()!=0 or sys.argv[1:]!=[\'adopt\']:raise ValueError(\'Unsupported storage operation\')\n    data=json.loads(sys.stdin.read(4096));device=data.get(\'device\')\n    if not isinstance(device,str) or not re.fullmatch(r\'/dev/[A-Za-z0-9_./-]{1,90}\',device) or \'..\' in device:raise ValueError(\'Invalid device\')\n    path=Path(device)\n    if not path.is_block_device():raise ValueError(\'Device is not a block device\')\n    # The privileged helper independently identifies eligible physical disks.\n    roots=json.loads(run(\'lsblk\',\'-J\',\'-b\',\'-o\',\'NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINTS,RO,PKNAME\')).get(\'blockdevices\',[])\n    bypath={};byname={};parents={}\n    def walk(node,parent=None):\n        name=node.get(\'name\');bypath[node.get(\'path\')]=node;byname[name]=node\n        if parent:parents[name]=parent\n        for child in node.get(\'children\') or []:walk(child,name)\n    for root in roots:walk(root)\n    node=bypath.get(str(path.resolve())) or bypath.get(device)\n    if not node or node.get(\'type\') not in (\'part\',\'disk\') or node.get(\'ro\'):raise ValueError(\'Not an eligible writable disk or partition\')\n    def root_for(n):\n        seen=set()\n        while n.get(\'name\') in parents:\n            if n[\'name\'] in seen:raise ValueError(\'Invalid device topology\')\n            seen.add(n[\'name\']);n=byname[parents[n[\'name\']]]\n        return n\n    disk=root_for(node)\n    if disk.get(\'type\')!=\'disk\' or disk.get(\'ro\') or str(disk.get(\'name\',\'\')).startswith((\'loop\',\'zram\',\'ram\',\'nbd\',\'sr\',\'fd\')):raise ValueError(\'Unsupported backing device\')\n    # Reject any physical disk carrying the root or boot filesystems.\n    protected={\'/\',\'/boot\',\'/boot/firmware\',\'/boot/efi\'}\n    def contains_system(n):\n        if any(m in protected for m in (n.get(\'mountpoints\') or []) if m):return True\n        return any(contains_system(c) for c in n.get(\'children\') or [])\n    if contains_system(disk):raise ValueError(\'Operating system storage is protected\')\n    for mount in protected:\n        src=run(\'findmnt\',\'-n\',\'-o\',\'SOURCE\',\'--target\',mount).split(\'[\',1)[0]\n        if src and src in bypath and root_for(bypath[src]).get(\'name\')==disk.get(\'name\'):\n            raise ValueError(\'Operating system storage is protected\')\n    fs=run(\'blkid\',\'-s\',\'TYPE\',\'-o\',\'value\',device)\n    uid=run(\'blkid\',\'-s\',\'UUID\',\'-o\',\'value\',device)\n    if fs not in (\'ext4\',\'xfs\',\'btrfs\') or not re.fullmatch(r\'[A-Za-z0-9-]{8,64}\',uid):raise ValueError(\'Supported filesystem and UUID required\')\n    # Reject RAID/LVM/crypto members and nested volume layouts.\n    if node.get(\'type\')==\'disk\' and node.get(\'children\'):raise ValueError(\'Choose a filesystem partition, not its parent disk\')\n    if node.get(\'children\'):raise ValueError(\'Complex volume layout not supported\')\n    mountpoints=[m for m in node.get(\'mountpoints\') or [] if m]\n    if len(mountpoints)>1:raise ValueError(\'Multiple mountpoints require manual review\')\n    if mountpoints and not str(mountpoints[0]).startswith(\'/mnt/pinas/\'):\n        raise ValueError(\'Filesystem is already mounted elsewhere; manage it manually to avoid disrupting applications\')\n    target=Path(\'/mnt/pinas\')/uid\n    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir())) and str(target) not in mountpoints):raise ValueError(\'Mount destination is not empty\')\n    fstab=Path(\'/etc/fstab\');original=fstab.read_text();entries=[line.split() for line in original.splitlines() if line.strip() and not line.lstrip().startswith(\'#\')]\n    for e in entries:\n        if len(e)>=2 and (e[0] in (device,\'UUID=\'+uid,\'/dev/disk/by-uuid/\'+uid) or e[1]==str(target)):\n            if e[0]==\'UUID=\'+uid and e[1]==str(target):\n                if str(target) not in mountpoints:run(\'mount\',str(target),timeout=25)\n                print(json.dumps({\'ok\':True,\'mount\':str(target),\'existing\':True}));return\n            raise ValueError(\'Existing fstab configuration requires manual review\')\n    target.parent.mkdir(parents=True,exist_ok=True)\n    target.mkdir(mode=0o755,exist_ok=True)\n    options=\'defaults,nofail,noatime,x-systemd.device-timeout=10s\'\n    entry=f\'UUID={uid} {target} {fs} {options} 0 {2 if fs=="ext4" else 0} # PiNAS managed\\\\n\'\n    entry=entry.replace(\'\\\\n\',\'\\n\')\n    backup=fstab.with_name(\'fstab.pinas-\'+uuid.uuid4().hex[:12]+\'.bak\')\n    backup.write_text(original);os.chmod(backup,0o600)\n    temp=fstab.with_name(\'.fstab.pinas-\'+uuid.uuid4().hex)\n    try:\n        temp.write_text(original.rstrip(\'\\n\')+\'\\n\'+entry);os.chmod(temp,0o644)\n        os.replace(temp,fstab)\n        run(\'systemctl\',\'daemon-reload\',timeout=15)\n        run(\'mount\',str(target),timeout=25)\n        actual=run(\'findmnt\',\'-n\',\'-o\',\'UUID\',\'--target\',str(target))\n        if actual!=uid:raise ValueError(\'Mounted filesystem UUID verification failed\')\n    except Exception:\n        fstab.write_text(original)\n        try:run(\'systemctl\',\'daemon-reload\')\n        except Exception:pass\n        raise\n    print(json.dumps({\'ok\':True,\'mount\':str(target)}))\nif __name__==\'__main__\':\n    try:main()\n    except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)\n'
 
 SMART_HEALTH_HELPER = """#!/usr/bin/env python3
