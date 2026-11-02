@@ -83,7 +83,7 @@ async function refreshServiceHealth(){
         if(!response.ok)throw Error(data.error||'Service health unavailable');
         const stateText={healthy:'Running',warning:'Attention',inactive:'Stopped','not-installed':'Not installed',pending:'Starting',unknown:'Unavailable'};
         target.innerHTML=(data.services||[]).map(s=>'<div class="line"><div><strong>'+esc(s.name)+'</strong><span class="small">'+esc(s.unit)+'</span></div><div><span class="pill '+(s.state==='healthy'?'good':'')+'">'+esc(stateText[s.state]||'Unavailable')+'</span><span class="small">'+esc(s.detail)+'</span></div></div>').join('');
-        notices.innerHTML=(data.warnings||[]).length?'<h3>System messages</h3>'+(data.warnings||[]).map(w=>'<p class="small"><strong>'+esc(w.name)+':</strong> '+esc(w.message)+'</p>').join(''):'<p class="small">No service failures or reboot requirements detected in the checked items.</p>';
+        notices.innerHTML=(data.warnings||[]).length?'<h3>System messages</h3>'+(data.warnings||[]).map(w=>'<p class="small"><strong>'+esc(w.name)+':</strong> '+esc(w.message)+'</p>').join(''):'';
     }catch(error){target.textContent='Unable to check services: '+error.message;notices.textContent=''}finally{if(button)button.disabled=false}
 }
 function updateHealth(){const uptime=document.getElementById('health-uptime'),os=document.getElementById('health-os'),kernel=document.getElementById('health-kernel'),load=document.getElementById('health-load');if(uptime)uptime.textContent=uptimeText(info.uptime_seconds);if(os)os.textContent=info.os_name||'Unavailable';if(kernel)kernel.textContent=info.kernel||'Unavailable';if(load)load.textContent=(info.load||[]).map(n=>Number(n).toFixed(2)).join(' / ')||'Unavailable'}
