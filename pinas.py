@@ -242,7 +242,7 @@ def minidlna_broker(action=None, settings=None):
     input_data=None if action is None else json.dumps({'action':action,'settings':settings})
     p=subprocess.run(cmd,input=input_data,capture_output=True,text=True,timeout=290,check=False)
     if p.returncode:
-        raise RuntimeError((p.stderr.strip() or 'MiniDLNA operation failed')[-5000:])
+        raise RuntimeError((p.stderr.strip() or 'MiniDLNA operation failed')[-8000:])
     return json.loads(p.stdout)
 
 def nas_file_action(action, username, share='', path='', **extra):
@@ -537,7 +537,7 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 .modal-overlay .field input,.modal-overlay .field select{min-width:0}
 .modal-overlay [role="status"]{overflow-wrap:anywhere}
 @media(max-width:560px){.modal-overlay>.settings-modal{max-height:calc(100dvh - 16px);padding:16px}.modal-overlay .modal-actions>.btn{flex:1 1 auto}}
-.dlna-controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.dlna-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.dlna-share-row{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line);padding:10px;border-radius:var(--radius-sm);margin:8px 0}.dlna-share-row select{max-width:150px;min-height:40px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px}.dlna-toggle{display:flex;align-items:center;gap:9px;margin:15px 0}.app-card-title{display:flex;align-items:center;gap:12px}.app-card-title svg{width:28px;height:28px;flex-shrink:0;color:var(--accent)}.minidlna-modal{width:min(100%,650px)!important}@media(max-width:560px){.dlna-fields{grid-template-columns:1fr}.dlna-share-row{flex-wrap:wrap}}</style></head><body><div id="app"></div><script>
+.dlna-controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.dlna-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.dlna-share-row{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line);padding:10px;border-radius:var(--radius-sm);margin:8px 0}.dlna-share-row select{max-width:150px;min-height:40px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px}.dlna-toggle{display:flex;align-items:center;gap:9px;margin:15px 0}.app-card-title{display:flex;align-items:center;gap:8px}.app-card-title svg{width:24px;height:24px;flex-shrink:0;color:var(--accent)}.minidlna-modal{width:min(100%,650px)!important}@media(max-width:560px){.dlna-fields{grid-template-columns:1fr}.dlna-share-row{flex-wrap:wrap}}</style></head><body><div id="app"></div><script>
 const app=document.getElementById('app');let info={},cfg={},cpu={},page='Overview',csrf='',role='admin',username='',displayName='',refreshTimer=null,lastNavRect=null;const nav=['Overview','Storage','Users','Shares','Applications'];
 // Navigation is derived from actual mounted NAS volumes, not a setup flag.
 // Once provisioned, existing accounts/shares remain accessible for recovery.
@@ -698,7 +698,7 @@ function openMiniDLNA(){
      draw(result);
    }catch(error){
      content.querySelectorAll('button,input,select').forEach(el=>el.disabled=false);
-     const m=content.querySelector('#dlna-message');if(m)m.textContent=error.message;
+     const m=content.querySelector('#dlna-message');if(m){m.style.whiteSpace='pre-wrap';m.style.overflowWrap='anywhere';m.textContent=error.message;}
    }
  }
  function draw(data){
@@ -1834,7 +1834,7 @@ def run(args,timeout=25,check=True,env=None):
         # apt/dpkg often places the real post-install error on stdout before its
         # generic 'returned error code (1)' footer on stderr.
         output='\n'.join(part for part in (p.stdout.strip(),p.stderr.strip()) if part)
-        raise ValueError(('Command failed (exit '+str(p.returncode)+'): '+output)[-5000:])
+        raise ValueError(('Command failed (exit '+str(p.returncode)+'):\n'+output)[-7500:])
     return p
 
 def installed():
@@ -1970,7 +1970,17 @@ def main():
         if not installed():
             apt_env=os.environ.copy()
             apt_env.update({'DEBIAN_FRONTEND':'noninteractive','DEBIAN_PRIORITY':'critical','APT_LISTCHANGES_FRONTEND':'none','NEEDRESTART_MODE':'a'})
-            run(['/usr/bin/apt-get','install','-y','-o','Dpkg::Use-Pty=0','minidlna'],timeout=240,env=apt_env)
+            try:
+                run(['/usr/bin/apt-get','install','-y','-o','Dpkg::Use-Pty=0','minidlna'],timeout=240,env=apt_env)
+            except (ValueError,subprocess.TimeoutExpired) as exc:
+                # Don't run dpkg --configure -a or apt -f install automatically:
+                # either command might change unrelated packages on this NAS.
+                audit=run(['/usr/bin/dpkg','--audit'],timeout=20,check=False)
+                detail=audit.stdout.strip() or audit.stderr.strip()
+                message='MiniDLNA package installation failed. The detailed APT/dpkg output follows:\n'+str(exc)
+                if detail:message+='\n\nPackage audit:\n'+detail[:1200]
+                message+='\n\nReview the first package-specific error above before attempting package repair.'
+                raise ValueError(message) from exc
             # Keep a newly installed service stopped until configured.
             run(['/usr/bin/systemctl','disable','--now',SERVICE],timeout=40,check=False)
     elif action=='configure':
