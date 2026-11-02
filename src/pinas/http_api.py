@@ -50,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
             _,sess=self.session()
             if not sess or sess.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             result=package_updates()
-            with UPDATE_LOCK:result['status']=UPDATE_STATUS.copy()
+            with UPDATE_LOCK:result['status']=UPDATE_STATUS.copy();result['firmware']=UPDATE_STATUS.get('firmware',{'state':'unknown'})
             result['reboot_required']=Path('/var/run/reboot-required').exists()
             try:result['schedule']=(DATA/'update-schedule').read_text().strip()
             except OSError:result['schedule']='off'
@@ -967,6 +967,13 @@ def main():
             timer.unlink(missing_ok=True)
             run(['systemctl','daemon-reload'])
         marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if args==['firmware-check']:
+        import shutil
+        checker=shutil.which('rpi-eeprom-update')
+        if not checker:
+            print('rpi-eeprom-update unavailable',file=sys.stderr);sys.exit(2)
+        run([checker],40)
         return
     if args==['automatic']:
         # Only the systemd oneshot invokes this command, not the web service account.
