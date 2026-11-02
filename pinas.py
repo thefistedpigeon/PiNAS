@@ -237,6 +237,14 @@ def configure_nas_mount(device):
         raise RuntimeError((proc.stderr.strip() or 'Storage configuration failed')[-800:])
     return json.loads(proc.stdout)
 
+def minidlna_broker(action=None, settings=None):
+    cmd=['/usr/bin/sudo','-n','/usr/local/libexec/pinas-minidlna', 'status' if action is None else 'action']
+    input_data=None if action is None else json.dumps({'action':action,'settings':settings})
+    p=subprocess.run(cmd,input=input_data,capture_output=True,text=True,timeout=290,check=False)
+    if p.returncode:
+        raise RuntimeError((p.stderr.strip() or 'MiniDLNA operation failed')[-500:])
+    return json.loads(p.stdout)
+
 def nas_file_action(action, username, share='', path='', **extra):
     payload={'action':action,'username':username,'share':share,'path':path,**extra}
     proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-files'],input=json.dumps(payload),
@@ -808,6 +816,12 @@ class Handler(BaseHTTPRequestHandler):
                 if mime not in ('image/jpeg','image/png','image/webp'):raise ValueError()
             except (ValueError,IndexError):self.json({'error':'Invalid image'},500);return
             self.send_headers(kind=mime);self.wfile.write(payload);return
+        if path=='/api/minidlna':
+            _,sess=self.session()
+            if not sess or sess.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            try:self.json(minidlna_broker());return
+            except (OSError,RuntimeError,ValueError,subprocess.TimeoutExpired) as exc:
+                self.json({'error':str(exc)},503);return
         if path=='/api/service-health':
             _,sess=self.session()
             if not sess or sess.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
@@ -837,7 +851,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/minidlna','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -1059,6 +1073,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(json.loads(result.stdout));return
             except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired,ValueError) as exc:
                 self.json({'error':'SMB reset failed: '+str(exc)},503);return
+        if path=='/api/minidlna':
+            if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            action=data.get('action')
+            if action not in ('install','configure','start','stop','restart','enable','disable','rescan'):
+                self.json({'error':'Unknown MiniDLNA operation'},400);return
+            password=data.get('admin_password')
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Current administrator password is incorrect'},403);return
+            try:self.json(minidlna_broker(action,data.get('settings')));return
+            except (OSError,RuntimeError,ValueError,subprocess.TimeoutExpired) as exc:
+                self.json({'error':str(exc)},503);return
         if path=='/api/settings':
             theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
             interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
@@ -1988,6 +2013,14 @@ def install(args):
     os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
     if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
         files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
+    media_helper=Path('/usr/local/libexec/pinas-minidlna')
+    media_helper.write_text(NAS_MINIDLNA_HELPER)
+    os.chown(media_helper,0,0);os.chmod(media_helper,0o700)
+    media_sudoers=Path('/etc/sudoers.d/pinas-minidlna')
+    media_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-minidlna status, /usr/local/libexec/pinas-minidlna action\n')
+    os.chown(media_sudoers,0,0);os.chmod(media_sudoers,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(media_sudoers)],capture_output=True).returncode:
+        media_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS MiniDLNA sudoers configuration')
     storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
     storage_helper.write_text(NAS_STORAGE_HELPER)
     os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
