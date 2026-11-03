@@ -7,7 +7,8 @@ import ast
 import pathlib
 import unittest
 
-SRC = (pathlib.Path(__file__).resolve().parents[1] / 'pinas.py').read_text()
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+SRC = '\n'.join((ROOT / 'src' / 'pinas' / name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
 TREE = ast.parse(SRC)
 VALUES = {}
 for statement in TREE.body:
