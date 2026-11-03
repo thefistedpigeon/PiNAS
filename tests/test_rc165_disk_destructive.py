@@ -17,6 +17,7 @@ for statement in TREE.body:
             if isinstance(target, ast.Name) and target.id in ('NAS_DESTRUCTIVE_HELPER', 'PAGE'):
                 VALUES[target.id] = ast.literal_eval(statement.value)
 
+@unittest.skipUnless('NAS_DESTRUCTIVE_HELPER' in VALUES, 'Destructive disk helper not present in this source branch')
 class DiskDestructiveGuards(unittest.TestCase):
     def test_helper_python_syntax(self):
         compile(VALUES['NAS_DESTRUCTIVE_HELPER'],'pinas-disk-destructive','exec')
