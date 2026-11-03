@@ -25,7 +25,7 @@ class DestructiveOperationChecks(unittest.TestCase):
     def test_delete_requires_password_before_dropping_privileges(self):
         code = EMBEDDED["NAS_FILES_HELPER"]
         auth = code.index("if action=='delete':")
-        drop = code.index("drop(person)")
+        drop = code.index("drop(person)",auth)
         delete = code.index("base_stat=os.lstat(target)")
         self.assertLess(auth, drop)
         self.assertLess(drop, delete)
