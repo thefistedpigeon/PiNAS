@@ -33,6 +33,13 @@ class OverviewDiskHealthTests(unittest.TestCase):
         self.assertIn('id="refresh-disk-health"',PAGE)
         self.assertIn("if(page==='Storage')",PAGE)
 
+    def test_disk_health_button_icon_and_spacing(self):
+        self.assertIn('class="chart-title storage-summary-heading"',PAGE)
+        self.assertIn('class="btn outline button-with-icon" id="refresh-disk-health"',PAGE)
+        self.assertIn('<span>Check disk health</span>',PAGE)
+        self.assertIn('M18.6 20.44',PAGE)
+        self.assertIn('.storage-summary-heading{padding-bottom:16px;margin-bottom:14px;',PAGE)
+
     def test_smart_checked_only_on_overview_and_button(self):
         self.assertEqual(PAGE.count("fetch('/api/smart-health'"),1)
         self.assertIn("if(page==='Overview'){document.getElementById('refresh-service-health')",PAGE)
