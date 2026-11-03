@@ -36,6 +36,21 @@ class CodeQualityChecks(unittest.TestCase):
         self.assertIn('class="btn outline button-with-icon"',page)
         self.assertNotIn('style="margin-top:16px"',page)
 
+    def test_login_copy_and_shared_sign_out(self):
+        tree=ast.parse((SOURCE / "web_ui.py").read_text(encoding="utf-8"))
+        page=next(ast.literal_eval(n.value) for n in tree.body
+                  if isinstance(n,ast.Assign)
+                  and any(isinstance(t,ast.Name) and t.id=="PAGE"
+                          for t in n.targets))
+        self.assertIn('<label class="field">Username<input name="user"',page)
+        self.assertNotIn('PiNAS ${esc(info.version)} · Prototype',page)
+        self.assertIn('PiNAS ${esc(info.version)}</span>',page)
+        self.assertEqual(page.count("async function signOut(button)"),1)
+        self.assertIn("await post('/api/logout',{})",page)
+        self.assertIn("window.location.replace('/')",page)
+        self.assertIn("document.getElementById('logout').onclick=()=>signOut(",page)
+        self.assertIn("document.getElementById('file-logout').onclick=()=>signOut(",page)
+
     def test_privileged_broker_and_registration_are_central(self):
         core=(SOURCE / "core.py").read_text(encoding="utf-8")
         installer=(SOURCE / "installer.py").read_text(encoding="utf-8")
