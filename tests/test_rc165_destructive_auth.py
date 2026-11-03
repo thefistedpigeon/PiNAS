@@ -8,7 +8,7 @@ import pathlib
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SOURCE = ROOT.joinpath("pinas.py").read_text(encoding="utf-8")
+SOURCE = '\n'.join((ROOT / 'src' / 'pinas' / name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
 TREE = ast.parse(SOURCE)
 EMBEDDED = {}
 for stmt in TREE.body:
