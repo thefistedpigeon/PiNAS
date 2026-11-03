@@ -240,8 +240,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Invalid device'},400);return
             if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
-            try:result=configure_nas_mount(device)
-            except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:self.json({'error':str(exc)},503);return
+            # Re-read hardware immediately before an operation; do not trust a
+            # cached browser disk list after USB disks are removed/reordered.
+            try:
+                fresh=hardware_discovery()
+                matches=[v for d in fresh.get('disks',[]) if not d.get('read_only')
+                         for v in d.get('volumes',[])
+                         if v.get('path')==device and not v.get('read_only')
+                         and v.get('fs') in ('ext4','xfs','btrfs') and v.get('uuid')]
+                if len(matches)!=1:
+                    self.json({'error':'Selected data filesystem is missing, read-only or ineligible. Refresh Storage and review the device before retrying.'},409);return
+                result=configure_nas_mount(device)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:
+                self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json(result);return
         if path=='/api/edit-share':
