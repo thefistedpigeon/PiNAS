@@ -168,7 +168,7 @@ PiNAS intentionally prioritises simple NAS functionality and Raspberry Pi effici
 
 ## Licence
 
-No licence has been selected yet. Repository visibility does not itself grant permission to reuse or redistribute the code.
+No licence has been selected yet. Help yourself to use the code as you see fit. Free and open source for all.
 
 ## v1.0.1 maintenance release
 
