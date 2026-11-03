@@ -92,6 +92,7 @@ class Handler(BaseHTTPRequestHandler):
             token=secrets.token_urlsafe(32);SESSIONS[token]={'csrf':secrets.token_urlsafe(32),'expires':time.time()+idle_seconds(cfg),'role':role,'username':user}
             self.json({'ok':True},cookie=f'pinas_session={token}; HttpOnly; SameSite=Strict; Path=/'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
         if not s or not hmac.compare_digest(self.headers.get('X-PiNAS-CSRF',''),s['csrf']):self.json({'error':'Authentication required'},403);return
+        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
         if path=='/api/user-preferences':
             if s.get('role')!='user':self.json({'error':'NAS user access required'},403);return
             theme,font,avatar=data.get('theme'),data.get('font'),data.get('avatar','')
@@ -272,7 +273,6 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json({'ok':True,'share':name});return
-        if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
         if path=='/api/reset-smb':
             password=data.get('admin_password')
             if s.get('role')!='admin':self.json({'error':'Administrator required'},403);return
