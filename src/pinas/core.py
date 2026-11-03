@@ -8,6 +8,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 VERSION='1.0.6'
+# A fresh identifier per service process lets browsers detect an update restart,
+# even when the application is updated without changing its version number.
+SERVER_INSTANCE=secrets.token_hex(16)
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}

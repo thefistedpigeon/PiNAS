@@ -33,6 +33,35 @@ class OverviewDiskHealthTests(unittest.TestCase):
         self.assertIn('id="refresh-disk-health"',PAGE)
         self.assertIn("if(page==='Storage')",PAGE)
 
+    def test_disk_health_button_icon_and_spacing(self):
+        self.assertIn('class="chart-title storage-summary-heading"',PAGE)
+        self.assertIn('class="btn outline button-with-icon" id="refresh-disk-health"',PAGE)
+        self.assertIn('<span>Check disk health</span>',PAGE)
+        self.assertIn('M18.6 20.44',PAGE)
+        self.assertIn('.storage-summary-heading{padding-bottom:16px;margin-bottom:14px;',PAGE)
+
+    def test_hover_has_accent_colour_and_icon_inheritance(self):
+        self.assertIn('.storage-summary-heading .btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff;filter:none}',PAGE)
+        self.assertIn('fill="currentColor"',PAGE)
+        self.assertIn('stroke="currentColor"',PAGE)
+
+    def test_upgrade_reloads_when_new_instance_appears(self):
+        self.assertIn("fetch('/api/pinas-build',{cache:'no-store',credentials:'same-origin'})",PAGE)
+        self.assertIn("current!==previousInstance",PAGE)
+        self.assertIn("window.location.reload()",PAGE)
+        self.assertIn("watchPinasUpgradeRestart(previousInstance,field('pinas-update-status'),msg,button)",PAGE)
+        self.assertIn("const previousInstance=await readPinasServiceInstance();",PAGE)
+        self.assertLess(PAGE.index("const previousInstance=await readPinasServiceInstance();"),
+                        PAGE.index("await post('/api/pinas-upgrade',{admin_password:pw"))
+        self.assertNotIn("checks++>40",PAGE)
+
+    def test_service_restart_probe_is_minimal_and_cache_bypassed(self):
+        core=(ROOT/'src/pinas/core.py').read_text(encoding='utf-8')
+        api=(ROOT/'src/pinas/http_api.py').read_text(encoding='utf-8')
+        self.assertIn("SERVER_INSTANCE=secrets.token_hex(16)",core)
+        self.assertIn("if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return",api)
+        self.assertIn("self.send_header('Cache-Control','no-store')",api)
+
     def test_smart_checked_only_on_overview_and_button(self):
         self.assertEqual(PAGE.count("fetch('/api/smart-health'"),1)
         self.assertIn("if(page==='Overview'){document.getElementById('refresh-service-health')",PAGE)
