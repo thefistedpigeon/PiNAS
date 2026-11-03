@@ -124,7 +124,27 @@ class Handler(BaseHTTPRequestHandler):
         if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
         if path=='/api/updates':
             action=data.get('action')
-            if action not in ('refresh','upgrade','schedule'):self.json({'error':'Unsupported update action'},400);return
+            if action not in ('refresh','upgrade','schedule','reboot'):self.json({'error':'Unsupported update action'},400);return
+            if action=='reboot':
+                # Require the current administrator's password in addition to session CSRF.
+                confirmation=data.get('admin_password')
+                if not isinstance(confirmation,str) or not verify(confirmation,(admin_record(cfg,s['username']) or {}).get('password','')):
+                    self.json({'error':'Incorrect administrator password'},403);return
+                with UPDATE_LOCK:
+                    if UPDATE_STATUS['running']:
+                        self.json({'error':'Wait for the current update operation to finish'},409);return
+                if not Path('/run/reboot-required').exists():
+                    self.json({'error':'No update requires a reboot'},409);return
+                try:
+                    proc=subprocess.run(
+                        ['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index','reboot'],
+                        capture_output=True,text=True,timeout=20,check=False,
+                    )
+                except (OSError,subprocess.TimeoutExpired) as exc:
+                    self.json({'error':'Unable to schedule reboot: '+str(exc)},503);return
+                if proc.returncode:
+                    self.json({'error':(proc.stderr.strip() or 'Unable to schedule reboot')[-500:]},503);return
+                self.json({'ok':True,'message':'System reboot scheduled'});return
             if action=='schedule':
                 schedule=data.get('schedule')
                 if schedule not in ('off','daily','weekly','monthly'):self.json({'error':'Invalid update schedule'},400);return
@@ -974,6 +994,17 @@ def main():
         if not checker:
             print('rpi-eeprom-update unavailable',file=sys.stderr);sys.exit(2)
         run([checker],40)
+        return
+    if args==['reboot']:
+        # This helper is independently constrained to reboot-required state; the
+        # HTTP route additionally requires an admin session, CSRF and password.
+        if not Path('/run/reboot-required').is_file():
+            sys.exit('No system reboot is required')
+        if not Path('/usr/bin/systemd-run').is_file():
+            sys.exit('systemd-run is unavailable')
+        # Delay gives the HTTP handler time to acknowledge before service shutdown.
+        run(['/usr/bin/systemd-run','--quiet','--unit=pinas-update-reboot',
+             '--on-active=10s','/usr/bin/systemctl','reboot'],15)
         return
     if args==['automatic']:
         # Only the systemd oneshot invokes this command, not the web service account.

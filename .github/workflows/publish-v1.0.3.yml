@@ -1,0 +1,43 @@
+name: Publish PiNAS v1.0.3
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.repository == 'thefistedpigeon/PiNAS'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm expected release version
+        run: |
+          grep -Fx "VERSION='1.0.3'" <(grep "^VERSION=" pinas.py)
+          test -f docs/releases/v1.0.3.md
+      - name: Verify release bundle
+        run: python3 tools/build_release.py --check
+      - name: Run regression checks
+        run: python3 -m unittest discover -s tests -v
+      - name: Publish tagged GitHub release and installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.3 >/dev/null 2>&1; then
+            echo "Release v1.0.3 already exists; will not overwrite it."
+          else
+            gh release create v1.0.3 pinas.py \
+              --target "$GITHUB_SHA" \
+              --title "PiNAS v1.0.3" \
+              --notes-file docs/releases/v1.0.3.md \
+              --latest
+          fi
