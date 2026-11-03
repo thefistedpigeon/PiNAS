@@ -56,8 +56,8 @@ class OverviewDiskHealthTests(unittest.TestCase):
         self.assertNotIn("checks++>40",PAGE)
 
     def test_service_restart_probe_is_minimal_and_cache_bypassed(self):
-        core=(SOURCE/'core.py').read_text(encoding='utf-8')
-        api=(SOURCE/'http_api.py').read_text(encoding='utf-8')
+        core=(ROOT/'src/pinas/core.py').read_text(encoding='utf-8')
+        api=(ROOT/'src/pinas/http_api.py').read_text(encoding='utf-8')
         self.assertIn("SERVER_INSTANCE=secrets.token_hex(16)",core)
         self.assertIn("if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return",api)
         self.assertIn("self.send_header('Cache-Control','no-store')",api)
