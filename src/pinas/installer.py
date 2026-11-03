@@ -11,6 +11,24 @@ def expand_modules(target):
         os.chmod(tmp,0o644)
         os.replace(tmp,destination)
 
+def install_privileged_helper(name, source, allowed_commands):
+    """Install a root-owned helper with a validated, narrowly scoped sudoers rule."""
+    if not re.fullmatch(r'pinas-[a-z-]+', name):
+        raise ValueError('Invalid privileged helper name')
+    helper=Path('/usr/local/libexec')/name
+    helper.write_text(source)
+    os.chown(helper,0,0)
+    os.chmod(helper,0o700)
+    rule=Path('/etc/sudoers.d')/name
+    commands=', '.join('/usr/local/libexec/'+name+(' '+arg if arg else '') for arg in allowed_commands)
+    rule.write_text('pinas ALL=(root) NOPASSWD: '+commands+'\n')
+    os.chown(rule,0,0)
+    os.chmod(rule,0o440)
+    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(rule)],capture_output=True).returncode:
+        rule.unlink(missing_ok=True)
+        raise RuntimeError('Invalid PiNAS sudoers configuration for '+name)
+    return helper
+
 def install(args):
     if sys.platform!='linux' or os.geteuid()!=0:sys.exit('Install requires Linux and sudo/root.')
     if not Path('/etc/os-release').exists():sys.exit('Unsupported OS')
@@ -39,72 +57,16 @@ def install(args):
     Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
     path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
     Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
-    user_helper=Path('/usr/local/libexec/pinas-nas-user')
-    user_helper.write_text(NAS_USER_HELPER)
-    os.chown(user_helper,0,0);os.chmod(user_helper,0o700)
-    sudoers=Path('/etc/sudoers.d/pinas-nas-user')
-    sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-user create *, /usr/local/libexec/pinas-nas-user password *, /usr/local/libexec/pinas-nas-user list\n')
-    os.chown(sudoers,0,0);os.chmod(sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(sudoers)],capture_output=True).returncode:
-        sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS sudoers configuration')
-    reset_helper=Path('/usr/local/libexec/pinas-smb-reset')
-    reset_helper.write_text(SMB_RESET_HELPER)
-    os.chown(reset_helper,0,0);os.chmod(reset_helper,0o700)
-    reset_sudoers=Path('/etc/sudoers.d/pinas-smb-reset')
-    reset_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smb-reset reset\n')
-    os.chown(reset_sudoers,0,0);os.chmod(reset_sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(reset_sudoers)],capture_output=True).returncode:
-        reset_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMB reset sudoers configuration')
+    user_helper=install_privileged_helper('pinas-nas-user',NAS_USER_HELPER,["create *","password *","list"])
+    reset_helper=install_privileged_helper('pinas-smb-reset',SMB_RESET_HELPER,["reset"])
     if first_install and Path('/etc/samba/smb.conf').is_file():
         subprocess.run(['/usr/bin/python3',str(reset_helper),'reset'],check=True,timeout=45)
-    share_helper=Path('/usr/local/libexec/pinas-nas-share')
-    share_helper.write_text(NAS_SHARE_HELPER)
-    os.chown(share_helper,0,0);os.chmod(share_helper,0o700)
-    share_sudoers=Path('/etc/sudoers.d/pinas-nas-share')
-    share_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-share list, /usr/local/libexec/pinas-nas-share create, /usr/local/libexec/pinas-nas-share delete, /usr/local/libexec/pinas-nas-share edit\n')
-    os.chown(share_sudoers,0,0);os.chmod(share_sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(share_sudoers)],capture_output=True).returncode:
-        share_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS share sudoers configuration')
-    files_helper=Path('/usr/local/libexec/pinas-nas-files')
-    files_helper.write_text(NAS_FILES_HELPER)
-    os.chown(files_helper,0,0);os.chmod(files_helper,0o700)
-    files_sudoers=Path('/etc/sudoers.d/pinas-nas-files')
-    files_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-files\n')
-    os.chown(files_sudoers,0,0);os.chmod(files_sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(files_sudoers)],capture_output=True).returncode:
-        files_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS file helper sudoers configuration')
-    updater_helper=Path('/usr/local/libexec/pinas-upgrader')
-    updater_helper.write_text(NAS_UPDATER_HELPER)
-    os.chown(updater_helper,0,0);os.chmod(updater_helper,0o700)
-    updater_sudoers=Path('/etc/sudoers.d/pinas-upgrader')
-    updater_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-upgrader apply, /usr/local/libexec/pinas-upgrader status\n')
-    os.chown(updater_sudoers,0,0);os.chmod(updater_sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(updater_sudoers)],capture_output=True).returncode:
-        updater_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS updater sudoers configuration')
-    storage_helper=Path('/usr/local/libexec/pinas-nas-storage')
-    storage_helper.write_text(NAS_STORAGE_HELPER)
-    os.chown(storage_helper,0,0);os.chmod(storage_helper,0o700)
-    storage_sudoers=Path('/etc/sudoers.d/pinas-nas-storage')
-    storage_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-nas-storage adopt\n')
-    os.chown(storage_sudoers,0,0);os.chmod(storage_sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(storage_sudoers)],capture_output=True).returncode:
-        storage_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS storage sudoers configuration')
-    smart_helper=Path('/usr/local/libexec/pinas-smart-health')
-    smart_helper.write_text(SMART_HEALTH_HELPER)
-    os.chown(smart_helper,0,0);os.chmod(smart_helper,0o700)
-    smart_sudoers=Path('/etc/sudoers.d/pinas-smart-health')
-    smart_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-smart-health\n')
-    os.chown(smart_sudoers,0,0);os.chmod(smart_sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(smart_sudoers)],capture_output=True).returncode:
-        smart_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS SMART sudoers configuration')
-    apt_helper=Path('/usr/local/libexec/pinas-apt-index')
-    apt_helper.write_text(APT_INDEX_HELPER)
-    os.chown(apt_helper,0,0);os.chmod(apt_helper,0o700)
-    apt_sudoers=Path('/etc/sudoers.d/pinas-apt-index')
-    apt_sudoers.write_text('pinas ALL=(root) NOPASSWD: /usr/local/libexec/pinas-apt-index refresh, /usr/local/libexec/pinas-apt-index upgrade, /usr/local/libexec/pinas-apt-index firmware-check, /usr/local/libexec/pinas-apt-index schedule off, /usr/local/libexec/pinas-apt-index schedule daily, /usr/local/libexec/pinas-apt-index schedule weekly, /usr/local/libexec/pinas-apt-index schedule monthly\n')
-    os.chown(apt_sudoers,0,0);os.chmod(apt_sudoers,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(apt_sudoers)],capture_output=True).returncode:
-        apt_sudoers.unlink(missing_ok=True);sys.exit('Invalid PiNAS APT sudoers configuration')
+    share_helper=install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit"])
+    files_helper=install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
+    updater_helper=install_privileged_helper('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"])
+    storage_helper=install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
+    smart_helper=install_privileged_helper('pinas-smart-health',SMART_HEALTH_HELPER,[""])
+    apt_helper=install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily","schedule weekly","schedule monthly"])
     auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
     auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
     os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
@@ -122,10 +84,9 @@ def install(args):
         os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
         os.chmod(f,mode)
     bind_host='0.0.0.0' if args.lan else '127.0.0.1' 
-    # TEMPORARY RC9.2: sudo inherits the service mount namespace. A root helper
-    # cannot write /etc/passwd, /etc/group or Samba state with ProtectSystem=strict.
-    # Replace sudo delegation with an independently sandboxed privileged service.
-    service='''[Unit]\nDescription=PiNAS prototype web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
+    # Privileged helpers run through narrowly scoped sudoers rules. The service
+    # mount namespace must permit those helpers to reach system configuration.
+    service='''[Unit]\nDescription=PiNAS web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
     Path('/etc/systemd/system/pinas.service').write_text(service)
     subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
     print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
@@ -133,7 +94,7 @@ def install(args):
     else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
 
 def main():
-    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS prototype')
+    ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS')
     ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
     ap.add_argument('--extract-modules',action='store_true',help=argparse.SUPPRESS)
     a=ap.parse_args()
