@@ -45,6 +45,18 @@ class OverviewDiskHealthTests(unittest.TestCase):
         self.assertIn('fill="currentColor"',PAGE)
         self.assertIn('stroke="currentColor"',PAGE)
 
+    def test_update_and_service_buttons_use_shared_hover_and_supplied_icons(self):
+        self.assertIn('class="btn outline button-with-icon action-icon-btn" id="apply-pinas-update"',PAGE)
+        self.assertIn('class="btn outline button-with-icon action-icon-btn" id="refresh-service-health"',PAGE)
+        self.assertIn('<span>Install selected update</span>',PAGE)
+        self.assertIn('<span>Refresh</span>',PAGE)
+        self.assertIn('M17.7 8.57H13',PAGE)
+        self.assertIn('M20.62 7.9c-3.12-4.09',PAGE)
+        self.assertIn('.action-icon-btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff;filter:none}',PAGE)
+        self.assertIn('.action-icon-btn svg{display:block;width:22px;height:22px;flex:none}',PAGE)
+        self.assertIn("field('apply-pinas-update').onclick=async()=>",PAGE)
+        self.assertIn("document.getElementById('refresh-service-health')?.addEventListener('click',refreshServiceHealth)",PAGE)
+
     def test_upgrade_reloads_when_new_instance_appears(self):
         self.assertIn("fetch('/api/pinas-build',{cache:'no-store',credentials:'same-origin'})",PAGE)
         self.assertIn("current!==previousInstance",PAGE)
