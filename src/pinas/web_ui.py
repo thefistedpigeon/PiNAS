@@ -13,7 +13,7 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 .section-spaced{margin-top:16px}.status-spaced{margin-top:12px}.button-with-icon{display:inline-flex;align-items:center;justify-content:center;gap:9px}.table-scroll{overflow-x:auto}.updates-package-table{width:100%;text-align:left;border-spacing:0 9px}.compact-card{padding:14px}.file-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 
 .file-action-btn{width:38px;height:38px;min-width:38px;display:inline-flex;align-items:center;justify-content:center;padding:6px;border-radius:10px;flex-shrink:0}.file-action-btn svg{display:block;flex-shrink:0}.file-action-btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}.file-action-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.file-toolbar .icon-btn{flex:0 0 48px;width:48px;height:48px;border-radius:11px;padding:8px;box-shadow:none;appearance:none;overflow:hidden}.file-toolbar .icon-btn svg{display:block;flex-shrink:0}.file-toolbar .icon-btn:hover:not(:disabled),.file-toolbar .file-upload-control:hover:not(:has(input:disabled)){background:var(--accent);border-color:var(--accent);color:#fff}.file-toolbar .icon-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.file-upload-control{position:relative;cursor:pointer}.file-upload-control input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}.file-upload-control:focus-within{outline:3px solid var(--accent);outline-offset:3px}.file-upload-control:has(input:disabled){opacity:.5;cursor:default}.file-entry{display:flex;align-items:center;gap:11px;min-width:0}.file-entry svg{flex-shrink:0;color:var(--accent)}.file-entry .file-name{overflow-wrap:anywhere}.storage-summary-heading{padding-bottom:16px;margin-bottom:14px;flex-wrap:wrap;row-gap:12px}.storage-summary-heading .btn{flex-shrink:0}.storage-summary-heading .btn svg{width:22px;height:22px;display:block;flex:none}.disk-smart-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px}.disk-health-good{color:var(--success)}.disk-health-warning{color:var(--danger)}.storage-safety-warning{border:1px solid var(--warning);margin-bottom:16px}.storage-safety-warning h2{margin-bottom:8px}.storage-safety-warning p{margin:6px 0}.user-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--soft);border:1px solid var(--line)}.user-header{display:flex;align-items:center;gap:10px;margin-left:auto}.profile-preview{width:74px;height:74px;border-radius:50%;object-fit:cover;border:1px solid var(--line);background:var(--soft)}.avatar-placeholder{display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0}.avatar-placeholder svg{width:70%;height:70%;display:block}.profile-preview img{width:100%;height:100%;border-radius:50%;object-fit:cover}.update-reboot-panel[hidden]{display:none}.update-reboot-panel{margin:16px 0;padding:15px;border:1px solid var(--warning);border-radius:var(--radius-sm)}.update-reboot-panel p{margin:0 0 12px}
+.file-toolbar .icon-btn{flex:0 0 48px;width:48px;height:48px;border-radius:11px;padding:8px;box-shadow:none;appearance:none;overflow:hidden}.file-toolbar .icon-btn svg{display:block;flex-shrink:0}.file-toolbar .icon-btn:hover:not(:disabled),.file-toolbar .file-upload-control:hover:not(:has(input:disabled)){background:var(--accent);border-color:var(--accent);color:#fff}.file-toolbar .icon-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.file-upload-control{position:relative;cursor:pointer}.file-upload-control input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}.file-upload-control:focus-within{outline:3px solid var(--accent);outline-offset:3px}.file-upload-control:has(input:disabled){opacity:.5;cursor:default}.file-entry{display:flex;align-items:center;gap:11px;min-width:0}.file-entry svg{flex-shrink:0;color:var(--accent)}.file-entry .file-name{overflow-wrap:anywhere}.storage-summary-heading{padding-bottom:16px;margin-bottom:14px;flex-wrap:wrap;row-gap:12px}.storage-summary-heading .btn{flex-shrink:0}.storage-summary-heading .btn svg{width:22px;height:22px;display:block;flex:none}.storage-summary-heading .btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff;filter:none}.disk-smart-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px}.disk-health-good{color:var(--success)}.disk-health-warning{color:var(--danger)}.storage-safety-warning{border:1px solid var(--warning);margin-bottom:16px}.storage-safety-warning h2{margin-bottom:8px}.storage-safety-warning p{margin:6px 0}.user-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--soft);border:1px solid var(--line)}.user-header{display:flex;align-items:center;gap:10px;margin-left:auto}.profile-preview{width:74px;height:74px;border-radius:50%;object-fit:cover;border:1px solid var(--line);background:var(--soft)}.avatar-placeholder{display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0}.avatar-placeholder svg{width:70%;height:70%;display:block}.profile-preview img{width:100%;height:100%;border-radius:50%;object-fit:cover}.update-reboot-panel[hidden]{display:none}.update-reboot-panel{margin:16px 0;padding:15px;border:1px solid var(--warning);border-radius:var(--radius-sm)}.update-reboot-panel p{margin:0 0 12px}
 .file-entry{border:0;background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer;flex:1;padding:8px 0}.file-entry:hover{text-decoration:underline}
 /* Shared icon behaviour across administrator and NAS-user views. */
 .icon-btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}
@@ -228,6 +228,51 @@ function openDiskWizard(index){
  overlay.querySelector('.storage-wizard').focus();
 }
 
+async function readPinasServiceInstance(){
+ const response=await fetch('/api/pinas-build',{cache:'no-store',credentials:'same-origin'});
+ if(!response.ok)throw Error('PiNAS service identity is unavailable');
+ const build=await response.json();
+ if(typeof build.instance!=='string'||!build.instance)throw Error('Invalid PiNAS service identity');
+ return build.instance;
+}
+function watchPinasUpgradeRestart(previousInstance,status,message,button){
+ // The service restart clears login sessions. The read-only build endpoint
+ // remains accessible, allowing a reload after a same-version upgrade too.
+ let checks=0,busy=false;
+ const timer=setInterval(async()=>{
+  if(busy)return;
+  busy=true;
+  try{
+   checks++;
+   try{
+    const current=await readPinasServiceInstance();
+    if(current!==previousInstance){
+     clearInterval(timer);
+     window.location.reload();
+     return;
+    }
+   }catch(error){/* Service may temporarily be offline during restart. */}
+   try{
+    const response=await fetch('/api/pinas-upgrade',{cache:'no-store'});
+    if(response.ok){
+     const update=await response.json();
+     if(status.isConnected)status.textContent=update.message||update.state||'';
+     if(update.state==='failed'||update.state==='rolled_back'){
+      clearInterval(timer);
+      if(message.isConnected)message.textContent=update.message||'PiNAS update failed. Review the update status.';
+      if(button.isConnected)button.disabled=false;
+      return;
+     }
+    }
+   }catch(error){/* Authentication or connection may reset during update. */}
+   if(checks>=120){
+    clearInterval(timer);
+    if(message.isConnected)message.textContent='Unable to confirm the restart automatically. Check that PiNAS is running, then refresh this page manually.';
+    if(button.isConnected)button.disabled=false;
+   }
+  }finally{busy=false}
+ },2500);
+}
 function openSettings(){
  const existing=document.getElementById('settings-overlay');if(existing)existing.remove();
  const overlay=document.createElement('div');overlay.className='modal-overlay';overlay.id='settings-overlay';
@@ -277,10 +322,10 @@ function openSettings(){
      const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Cannot read file'));reader.readAsDataURL(f)});
      const hashBuffer=await crypto.subtle.digest('SHA-256',await f.arrayBuffer());
      const sha256=Array.from(new Uint8Array(hashBuffer),v=>v.toString(16).padStart(2,'0')).join('');
+     const previousInstance=await readPinasServiceInstance();
      await post('/api/pinas-upgrade',{admin_password:pw,filename:f.name,sha256,package_b64:data});
-     msg.textContent='Update accepted. PiNAS will restart automatically. Reconnect after the service returns.';
-     const status=field('pinas-update-status');let checks=0;
-     const timer=setInterval(async()=>{if(!document.body.contains(overlay)||checks++>40){clearInterval(timer);return}try{const response=await fetch('/api/pinas-upgrade',{cache:'no-store'});if(!response.ok)return;const update=await response.json();status.textContent=update.message||update.state;if(['succeeded','rolled_back','failed'].includes(update.state)){clearInterval(timer);button.disabled=false}}catch(e){}},3000);
+     msg.textContent='Update accepted. PiNAS will restart automatically. This page will refresh once the service reconnects; you may need to sign in again.';
+     watchPinasUpgradeRestart(previousInstance,field('pinas-update-status'),msg,button);
    }catch(e){msg.textContent=e.message;button.disabled=false}
  };
  overlay.querySelector('.settings-modal').focus();
