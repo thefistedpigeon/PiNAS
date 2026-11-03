@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='1.0.5'
+VERSION='1.0.6'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -578,7 +578,7 @@ def hardware():
     try:kernel=os.uname().release
     except AttributeError:kernel='Unavailable'
     base.update(uptime_seconds=uptime_seconds,os_name=os_name,kernel=kernel)
-    base.update(temperature=temp,throttle=command('vcgencmd','get_throttled',timeout=2),memory_total=mem.get('MemTotal',0),memory_used=max(0,mem.get('MemTotal',0)-mem.get('MemAvailable',0)),load=list(os.getloadavg()),version=VERSION)
+    base.update(temperature=temp,throttle=command('vcgencmd','get_throttled',timeout=2),memory_total=mem.get('MemTotal',0),memory_used=max(0,mem.get('MemTotal',0)-mem.get('MemAvailable',0)),version=VERSION)
     model=base['model'];ram=base['memory_total'];profile='performance' if 'Raspberry Pi 5' in model and ram>=3*1024**3 else 'enhanced' if 'Raspberry Pi 4' in model and ram>=2*1024**3 else 'essential'
     base['profile']=profile
     base['capabilities']={'samba':True,'raid':True,'curated_apps':profile!='essential','jellyfin':profile=='performance'}

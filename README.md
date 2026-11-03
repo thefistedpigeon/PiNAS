@@ -2,16 +2,17 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Release status:** PiNAS v1.0.3 is the latest published release. v1.0.4 has been tested and merged. v1.0.5 is an unreleased storage-safety development candidate for hardware testing, not yet on `main`. Keep independent backups of important files, particularly before changing storage or RAID configurations.
+> **Release status:** PiNAS v1.0.3 is the latest published release. v1.0.4 has been tested and merged. v1.0.5 has been tested and merged. v1.0.6 is a development candidate for hardware testing and is not yet merged into `main`. Keep independent backups of important files, particularly before changing storage or RAID configurations.
 
 ## Features
 
 ### Overview
 - Per-disk storage usage bars showing disk name, used and available space. System/boot storage is excluded from NAS disk listings.
+- Per-drive SMART health status and temperature alongside the Overview storage bars, checked when Overview opens and manually refreshed on demand; unsupported adapters show unavailable values.
 - Compact Disks / Shares / Users counters with links to their respective pages.
 - CPU activity history with configurable sampling and history length.
 - Memory usage and CPU-temperature doughnut charts.
-- Raspberry Pi model, hostname, throttling status, uptime, OS, kernel and load average in System health.
+- Raspberry Pi model, hostname, throttling status, uptime, OS and kernel in System health.
 - NAS service health and reboot warnings, checked when Overview is opened or refreshed.
 
 ### Storage and RAID
@@ -153,7 +154,7 @@ Edit the files in `src/pinas/` and regenerate `pinas.py`; **do not maintain the 
 ### Branches
 
 - `main`: reviewed/tested baseline.
-- `develop/v1.0.5-storage-safety`: isolated v1.0.5 candidate under review, with no automatic publication.
+- `develop/v1.0.6-health-overview`: isolated v1.0.6 candidate under review, with no automatic publication.
 - Feature and fix branches: proposed changes reviewed using pull requests.
 
 ## Scope and known limitations
@@ -180,3 +181,7 @@ See [v1.0.4 reliability and recovery notes](docs/releases/v1.0.4.md). This candi
 ## v1.0.5 development milestone
 
 See [v1.0.5 storage safety and testing notes](docs/releases/v1.0.5.md). This remains **unreleased** until Raspberry Pi testing, with the next planned public release targeted at v1.0.6.
+
+## v1.0.6 development milestone
+
+See [v1.0.6 Overview health testing notes](docs/releases/v1.0.6.md). This build is intentionally **unreleased** until Raspberry Pi testing and approval to merge.
