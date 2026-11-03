@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Development status:** Active release-candidate development. Features are being tested on Raspberry Pi hardware and are not yet a stable production release. Keep independent backups of important files, particularly before changing storage or RAID configurations.
+> **Release status:** PiNAS v1.0.3 is the latest published release. v1.0.4 is an unreleased reliability and recovery candidate for hardware testing; it is not yet on `main`. Keep independent backups of important files, particularly before changing storage or RAID configurations.
 
 ## Features
 
@@ -69,6 +69,12 @@ sudo python3 pinas.py --install --lan --skip-packages
 PiNAS uses **HTTPS port 8765 by default**. Open `https://<pi-ip-address>:8765` in a browser on your local network; your browser may warn about the self-signed certificate. Keep PiNAS on a trusted network, not exposed directly to the internet.
 
 The installer configures a systemd service and extracts its bundled source sections under `/opt/pinas/modules/`. Existing configuration and NAS data are intended to be preserved during application updates.
+
+### Configuration backup and restore (v1.0.4 candidate)
+
+In **Settings → Configuration backup & recovery**, an administrator can export a JSON manifest after re-entering their password. It contains portable interface/monitoring/security preferences, account display names, and a read-only inventory of NAS users and shares. Administrator credentials, SMB passwords, certificates, login backgrounds and file contents are excluded.
+
+**Restore settings from file** requires administrator authentication and confirmation. It applies only validated device preferences and display names. It does **not** automatically recreate Samba users, shares, mounts, mdadm RAID, filesystem contents or passwords. Those components must be restored separately by an administrator. The backup is a recovery reference, **not a full NAS backup**, and is not a substitute for independent copies of your data.
 
 ### Update PiNAS
 
@@ -145,7 +151,7 @@ Edit the files in `src/pinas/` and regenerate `pinas.py`; **do not maintain the 
 ### Branches
 
 - `main`: reviewed/tested baseline.
-- `develop`: current release-candidate development.
+- `develop/v1.0.4-reliability-recovery`: isolated v1.0.4 candidate under review, with no automatic publication.
 - Feature and fix branches: proposed changes reviewed using pull requests.
 
 ## Scope and known limitations
@@ -164,3 +170,7 @@ No licence has been selected yet. Repository visibility does not itself grant pe
 ## v1.0.1 maintenance release
 
 See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The standalone application remains lightweight and standard-library-only. This maintenance update consolidates shared styling and helper routines and adds automated quality checks.
+
+## v1.0.4 development milestone
+
+See [v1.0.4 reliability and recovery notes](docs/releases/v1.0.4.md). This candidate is intentionally **not a published release**; merge only after Raspberry Pi smoke testing and keep the next public release for v1.0.6 if planned.
