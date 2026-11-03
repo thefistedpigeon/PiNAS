@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Release status:** PiNAS v1.0.3 is the latest published release. v1.0.4 has been tested and merged. v1.0.5 has been tested and merged. v1.0.6 is a development candidate for hardware testing and is not yet merged into `main`. Keep independent backups of important files, particularly before changing storage or RAID configurations.
+> **Release status:** PiNAS v1.0.6 is the current official release, incorporating the tested v1.0.4 reliability/recovery and v1.0.5 storage-safety milestones. Keep independent backups of important files, particularly before changing storage or RAID configurations.
 
 ## Features
 
@@ -16,7 +16,7 @@
 - NAS service health and reboot warnings, checked when Overview is opened or refreshed.
 
 ### Storage and RAID
-- v1.0.5 candidate: warn about missing, unmounted or mismatched PiNAS-managed UUID data mounts and degraded mdadm arrays, without automatic repairs.
+- Warn about missing, unmounted or mismatched PiNAS-managed UUID data mounts and degraded mdadm arrays, without automatic repairs.
 - Revalidate the selected filesystem against current hardware before a privileged storage adoption operation.
 - Discover attached drives and supported **ext4, XFS and Btrfs** filesystems, including additional Btrfs detection where required.
 - Inspect mounts and adopt existing formatted drives, with persistent mounting and applicable filesystem options.
@@ -154,7 +154,7 @@ Edit the files in `src/pinas/` and regenerate `pinas.py`; **do not maintain the 
 ### Branches
 
 - `main`: reviewed/tested baseline.
-- `develop/v1.0.6-health-overview`: isolated v1.0.6 candidate under review, with no automatic publication.
+- Release workflows publish version-tagged downloadable `pinas.py` files after automated checks.
 - Feature and fix branches: proposed changes reviewed using pull requests.
 
 ## Scope and known limitations
@@ -174,14 +174,10 @@ No licence has been selected yet. Repository visibility does not itself grant pe
 
 See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The standalone application remains lightweight and standard-library-only. This maintenance update consolidates shared styling and helper routines and adds automated quality checks.
 
-## v1.0.4 development milestone
+## Recent releases
 
-See [v1.0.4 reliability and recovery notes](docs/releases/v1.0.4.md). This candidate is intentionally **not a published release**; merge only after Raspberry Pi smoke testing and keep the next public release for v1.0.6 if planned.
+- **v1.0.6:** [Official release notes](docs/releases/v1.0.6.md) — storage safety and recovery, Overview disk health/temperature, standardised buttons and improved automatic browser reload after an application update.
+- **v1.0.5 (development milestone):** [Storage safety and testing notes](docs/releases/v1.0.5.md).
+- **v1.0.4 (development milestone):** [Reliability and recovery notes](docs/releases/v1.0.4.md).
 
-## v1.0.5 development milestone
-
-See [v1.0.5 storage safety and testing notes](docs/releases/v1.0.5.md). This remains **unreleased** until Raspberry Pi testing, with the next planned public release targeted at v1.0.6.
-
-## v1.0.6 development milestone
-
-See [v1.0.6 Overview health testing notes](docs/releases/v1.0.6.md). This build is intentionally **unreleased** until Raspberry Pi testing and approval to merge.
+For installable builds, use the [PiNAS GitHub Releases](https://github.com/thefistedpigeon/PiNAS/releases) page rather than a development branch.
