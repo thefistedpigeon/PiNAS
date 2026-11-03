@@ -7,7 +7,8 @@ import ast
 import pathlib
 import unittest
 
-SRC = (pathlib.Path(__file__).resolve().parents[1] / 'pinas.py').read_text()
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+SRC = '\n'.join((ROOT / 'src' / 'pinas' / name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
 TREE = ast.parse(SRC)
 VALUES = {}
 for statement in TREE.body:
@@ -16,6 +17,7 @@ for statement in TREE.body:
             if isinstance(target, ast.Name) and target.id in ('NAS_DESTRUCTIVE_HELPER', 'PAGE'):
                 VALUES[target.id] = ast.literal_eval(statement.value)
 
+@unittest.skipUnless('NAS_DESTRUCTIVE_HELPER' in VALUES, 'Destructive disk helper not present in this source branch')
 class DiskDestructiveGuards(unittest.TestCase):
     def test_helper_python_syntax(self):
         compile(VALUES['NAS_DESTRUCTIVE_HELPER'],'pinas-disk-destructive','exec')

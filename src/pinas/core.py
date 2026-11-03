@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PiNAS RC1 — lightweight NAS management interface (stdlib only)."""
+"""PiNAS lightweight NAS management interface (stdlib only)."""
 import ssl, ipaddress, re, argparse, base64, hashlib, hmac, json, os, secrets, shutil, socket, subprocess, sys, time, threading
 from collections import deque
 from http import HTTPStatus
@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='1.0.0'
+VERSION='1.0.1'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -150,7 +150,7 @@ def read(path):
 
 def load():
     try: return json.loads(CONFIG.read_text())
-    except (OSError,ValueError): return {'theme':'light','accent':'#c51a4a','font':12,'login_background':''}
+    except (OSError,ValueError): return {'theme':'light','font':12,'login_background':''}
 
 def save(config):
     DATA.mkdir(parents=True,exist_ok=True)
@@ -184,16 +184,23 @@ def valid_display_name(value):
 def valid_account_password(value):
     return isinstance(value,str) and 12<=len(value)<=256
 
+def privileged_command(helper, *args, payload=None, timeout=35):
+    """Run an installed PiNAS root broker with explicit input and timeout."""
+    if not re.fullmatch(r'pinas-[a-z-]+', helper):
+        raise ValueError('Invalid privileged helper')
+    return subprocess.run(
+        ['sudo','-n','/usr/local/libexec/'+helper,*args],
+        input=payload, capture_output=True, text=True, timeout=timeout, check=False,
+    )
+
 def change_nas_password(username,password):
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-user','password',username],
-        input=password+'\n',text=True,capture_output=True,timeout=35,check=False)
+    proc=privileged_command('pinas-nas-user','password',username,payload=password+'\n')
     if proc.returncode:raise RuntimeError('Unable to update Samba password: '+(proc.stderr.strip() or 'Privileged helper failed')[-400:])
 
 def nas_user_list():
     """Query Samba passdb via the narrowly scoped root helper (passdb is root-only)."""
     try:
-        p=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-user','list'],
-            capture_output=True,text=True,timeout=8,check=False)
+        p=privileged_command('pinas-nas-user','list',timeout=8)
         if p.returncode == 0:
             users=json.loads(p.stdout)
             if isinstance(users,list):return users
@@ -213,16 +220,14 @@ def storage_is_ready():
 
 def provision_nas_user(username,password):
     """Delegate narrowly scoped account provisioning; never run useradd in web process."""
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-user','create',username],
-        input=password+'\n',text=True,capture_output=True,timeout=35,check=False)
+    proc=privileged_command('pinas-nas-user','create',username,payload=password+'\n')
     if proc.returncode:
         raise RuntimeError('NAS user provisioning failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-700:])
     return True
 
 def nas_share_list():
     try:
-        proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','list'],
-            capture_output=True,text=True,timeout=8,check=False)
+        proc=privileged_command('pinas-nas-share','list',timeout=8)
         if proc.returncode==0:
             result=json.loads(proc.stdout)
             if isinstance(result,list):return result
@@ -231,44 +236,36 @@ def nas_share_list():
 
 def create_nas_share(name,volume,access,public=False,public_write=False):
     payload=json.dumps({'name':name,'volume':volume,'access':access,'public':public,'public_write':public_write})
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','create'],
-        input=payload,text=True,capture_output=True,timeout=35,check=False)
+    proc=privileged_command('pinas-nas-share','create',payload=payload)
     if proc.returncode:
         raise RuntimeError('Share creation failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
 
 def edit_nas_share(name,new_name,access,public=False,public_write=False):
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','edit'],
-        input=json.dumps({'name':name,'new_name':new_name,'access':access,'public':public,'public_write':public_write}),
-        text=True,capture_output=True,timeout=35,check=False)
+    proc=privileged_command('pinas-nas-share','edit',payload=json.dumps({'name':name,'new_name':new_name,'access':access,'public':public,'public_write':public_write}))
     if proc.returncode:
         raise RuntimeError('Share edit failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
 
 def delete_nas_share(name):
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-share','delete'],
-        input=json.dumps({'name':name}),text=True,capture_output=True,timeout=35,check=False)
+    proc=privileged_command('pinas-nas-share','delete',payload=json.dumps({'name':name}))
     if proc.returncode:
         raise RuntimeError('Share removal failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
 
 def configure_nas_mount(device):
     """Non-destructive UUID-based adoption via independently validated root broker."""
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-storage','adopt'],
-        input=json.dumps({'device':device}),text=True,capture_output=True,timeout=40,check=False)
+    proc=privileged_command('pinas-nas-storage','adopt',payload=json.dumps({'device':device}),timeout=40)
     if proc.returncode:
         raise RuntimeError((proc.stderr.strip() or 'Storage configuration failed')[-800:])
     return json.loads(proc.stdout)
 
 def nas_file_action(action, username, share='', path='', **extra):
     payload={'action':action,'username':username,'share':share,'path':path,**extra}
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-files'],input=json.dumps(payload),
-        capture_output=True,text=True,timeout=120,check=False)
+    proc=privileged_command('pinas-nas-files',payload=json.dumps(payload),timeout=120)
     if proc.returncode:
         raise RuntimeError((proc.stderr.strip() or 'File operation failed')[-500:])
     return json.loads(proc.stdout)
 
 def nas_authenticate(username,password):
-    proc=subprocess.run(['sudo','-n','/usr/local/libexec/pinas-nas-files'],
-        input=json.dumps({'action':'authenticate','username':username,'password':password}),
-        capture_output=True,text=True,timeout=12,check=False)
+    proc=privileged_command('pinas-nas-files',payload=json.dumps({'action':'authenticate','username':username,'password':password}),timeout=12)
     return proc.returncode==0 and proc.stdout.strip()=='true'
 
 def nas_user_count():

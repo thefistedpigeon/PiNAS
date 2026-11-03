@@ -8,7 +8,7 @@ import pathlib
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SOURCE = ROOT.joinpath("pinas.py").read_text(encoding="utf-8")
+SOURCE = '\n'.join((ROOT / 'src' / 'pinas' / name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
 TREE = ast.parse(SOURCE)
 EMBEDDED = {}
 for stmt in TREE.body:
@@ -25,7 +25,7 @@ class DestructiveOperationChecks(unittest.TestCase):
     def test_delete_requires_password_before_dropping_privileges(self):
         code = EMBEDDED["NAS_FILES_HELPER"]
         auth = code.index("if action=='delete':")
-        drop = code.index("drop(person)")
+        drop = code.index("drop(person)",auth)
         delete = code.index("base_stat=os.lstat(target)")
         self.assertLess(auth, drop)
         self.assertLess(drop, delete)

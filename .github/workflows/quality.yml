@@ -1,0 +1,24 @@
+name: PiNAS quality checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify generated release matches source
+        run: python3 tools/build_release.py --check
+      - name: Compile Python files
+        run: python3 -m compileall -q src/pinas pinas.py tools tests
+      - name: Run regressions
+        run: python3 -m unittest discover -s tests -v

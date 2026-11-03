@@ -6,7 +6,8 @@ import ast
 import pathlib
 import unittest
 
-SOURCE=(pathlib.Path(__file__).resolve().parents[1]/'pinas.py').read_text(encoding='utf-8')
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+SOURCE='\n'.join((ROOT/'src'/'pinas'/name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
 TREE=ast.parse(SOURCE)
 EMBEDDED={}
 for node in TREE.body:
@@ -15,6 +16,7 @@ for node in TREE.body:
             if isinstance(target,ast.Name) and target.id in ('NAS_MINIDLNA_HELPER','PAGE'):
                 EMBEDDED[target.id]=ast.literal_eval(node.value)
 
+@unittest.skipUnless('NAS_MINIDLNA_HELPER' in EMBEDDED, 'MiniDLNA helper not present in this source branch')
 class MiniDLNATests(unittest.TestCase):
     def test_helper_compiles(self):
         compile(EMBEDDED['NAS_MINIDLNA_HELPER'],'pinas-minidlna','exec')

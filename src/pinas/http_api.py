@@ -57,7 +57,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json(result);return
         if path!='/api/state':self.json({'error':'Not found'},404);return
         cfg=load();token,s=self.session();setup='admin_password' in cfg
-        safe={k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')};safe['has_background']=bool(cfg.get('login_background'))
+        safe={k:cfg.get(k) for k in ('theme','font','cpu_interval','cpu_history','session_timeout')};safe['has_background']=bool(cfg.get('login_background'))
         if s and s.get('role')=='user':safe.update(cfg.get('user_preferences',{}).get(s['username'],{}))
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
@@ -95,7 +95,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/user-preferences':
             if s.get('role')!='user':self.json({'error':'NAS user access required'},403);return
             theme,font,avatar=data.get('theme'),data.get('font'),data.get('avatar','')
-            if theme not in ('light','dark','light-cb','dark-cb') or type(font)!=int or font not in (10,12,14,16) or not isinstance(avatar,str) or len(avatar)>360000:
+            if theme not in ('light','dark') or type(font)!=int or font not in (10,12,14,16) or not isinstance(avatar,str) or len(avatar)>360000:
                 self.json({'error':'Invalid profile settings'},400);return
             if avatar:
                 try:
@@ -302,11 +302,11 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,RuntimeError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503);return
         if path=='/api/settings':
-            theme,accent,font=data.get('theme'),data.get('accent'),data.get('font')
+            theme,font=data.get('theme'),data.get('font')
             interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
             session_timeout=data.get('session_timeout',cfg.get('session_timeout',5))
-            if theme not in ('light','dark','dark-cb','light-cb') or not isinstance(accent,str) or len(accent)!=7 or accent[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in accent[1:]) or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
-            cfg.update(theme=theme,accent=accent,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
+            if theme not in ('light','dark') or type(font)!=int or font not in (10,12,14,16) or type(interval)!=int or interval not in (2,5,10) or type(history)!=int or history not in (10,15,30,60) or type(session_timeout)!=int or session_timeout not in (5,10,15,30,60):self.json({'error':'Invalid appearance settings'},400);return
+            cfg.update(theme=theme,font=font,cpu_interval=interval,cpu_history=history,session_timeout=session_timeout)
         elif path=='/api/background':
             image=data.get('image')
             if not isinstance(image,str) or len(image)>2_900_000:self.json({'error':'Image too large'},400);return
@@ -319,7 +319,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
                 except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
             cfg['login_background']=image
-        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','accent','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
 
 HOSTNAME_HELPER = r"""#!/usr/bin/env python3
 import json, re, subprocess
