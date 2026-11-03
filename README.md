@@ -160,3 +160,7 @@ PiNAS intentionally prioritises simple NAS functionality and Raspberry Pi effici
 ## Licence
 
 No licence has been selected yet. Repository visibility does not itself grant permission to reuse or redistribute the code.
+
+## v1.0.1 maintenance release
+
+See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The standalone application remains lightweight and standard-library-only. This maintenance update consolidates shared styling and helper routines and adds automated quality checks.
