@@ -43,8 +43,30 @@ def install(args):
     # Only take ownership of Samba automatically on a genuinely new PiNAS installation.
     first_install=not Path('/opt/pinas/pinas.py').exists()
     target=Path('/opt/pinas');target.mkdir(parents=True,exist_ok=True)
-    shutil.copyfile(Path(__file__).resolve(),target/'pinas.py');os.chmod(target/'pinas.py',0o755)
-    expand_modules(target)
+    existing=target/'pinas.py'
+    previous=target/'pinas.py.previous'
+    staged=target/'pinas.py.new'
+    # Never clobber a running installation before validating and preserving its
+    # previous code. This does not touch /var/lib/pinas or any NAS data volumes.
+    source=Path(__file__).resolve()
+    source_bytes=source.read_bytes()
+    if len(source_bytes)>2*1024*1024:raise RuntimeError('PiNAS installer exceeds supported size')
+    compile(source_bytes,str(source),'exec')
+    if existing.exists():
+        shutil.copy2(existing,previous)
+        os.chmod(previous,0o600)
+    try:
+        staged.write_bytes(source_bytes)
+        os.chmod(staged,0o755)
+        os.replace(staged,existing)
+        expand_modules(target)
+    except Exception:
+        staged.unlink(missing_ok=True)
+        if not first_install and previous.is_file():
+            shutil.copy2(previous,existing)
+            os.chmod(existing,0o755)
+            expand_modules(target)
+        raise
     if subprocess.run(['id','-u','pinas'],capture_output=True).returncode!=0:
         subprocess.run(['useradd','--system','--home-dir','/var/lib/pinas','--shell','/usr/sbin/nologin','pinas'],check=True)
     DATA.mkdir(parents=True,exist_ok=True);os.chmod(DATA,0o700)

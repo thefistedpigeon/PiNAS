@@ -62,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -321,6 +321,26 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'accepted':True,'message':'Update scheduled; service will restart'});return
             except (OSError,RuntimeError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503);return
+        if path in ('/api/config-backup','/api/config-restore'):
+            confirmation=data.get('admin_password')
+            if not isinstance(confirmation,str) or not verify(confirmation,(admin_record(cfg,s['username']) or {}).get('password','')):
+                self.json({'error':'Incorrect administrator password'},403);return
+            if path=='/api/config-backup':
+                try:backup=configuration_backup(cfg)
+                except (OSError,ValueError,subprocess.TimeoutExpired) as exc:
+                    self.json({'error':'Unable to collect backup inventory: '+str(exc)},503);return
+                self.json({'backup':backup});return
+            try:settings,names=validate_configuration_restore(data.get('backup'))
+            except ValueError as exc:self.json({'error':str(exc)},400);return
+            if data.get('confirm')!='RESTORE SETTINGS':
+                self.json({'error':'Explicit restore confirmation required'},400);return
+            with SETUP_LOCK:
+                latest=load()
+                latest.update(settings)
+                latest['nas_display_names']=names
+                save(latest)
+            self.json({'ok':True,'settings':{key:latest.get(key) for key in BACKUP_SETTINGS},
+                       'message':'Settings restored. Accounts, shares, disks and files were not modified.'});return
         if path=='/api/settings':
             theme,font=data.get('theme'),data.get('font')
             interval,history=data.get('cpu_interval',cfg.get('cpu_interval',5)),data.get('cpu_history',cfg.get('cpu_history',10))
