@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='1.0.4'
+VERSION='1.0.5'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -350,6 +350,44 @@ def persistent_mounts():
     except OSError:pass
     return entries
 
+def managed_storage_health():
+    """Read-only health of PiNAS-created UUID mounts, without touching devices.
+
+    Only entries explicitly tagged by PiNAS and under /mnt/pinas are reported.
+    Do not interpret unrelated administrator-managed fstab records as PiNAS drives.
+    """
+    health=[]
+    try:
+        lines=Path('/etc/fstab').read_text().splitlines()
+    except OSError:
+        return health
+    for line in lines:
+        if '# PiNAS managed' not in line or line.lstrip().startswith('#'):
+            continue
+        cols=line.split('#',1)[0].split()
+        if len(cols)<4:
+            continue
+        source,target,fs=cols[:3]
+        if not re.fullmatch(r'UUID=[A-Za-z0-9-]{8,64}',source):
+            continue
+        if target!='/mnt/pinas/'+source[5:] or fs not in ('ext4','xfs','btrfs'):
+            continue
+        uuid=source[5:]
+        device=Path('/dev/disk/by-uuid')/uuid
+        try:
+            if not device.exists():
+                state='missing'
+            elif not os.path.ismount(target):
+                state='unmounted'
+            else:
+                # A directory mounted with the wrong filesystem is not healthy.
+                actual=command('findmnt','-n','-o','UUID','--mountpoint',target,timeout=2).strip()
+                state='mounted' if actual==uuid else 'mismatch'
+        except OSError:
+            state='unmounted'
+        health.append({'uuid':uuid,'mount':target,'filesystem':fs,'state':state})
+    return health
+
 def btrfs_probe(device):
     """Read-only fallback; blkid can miss Btrfs on some devices."""
     if not device or not device.startswith('/dev/') or not shutil.which('btrfs'):return ''
@@ -522,6 +560,7 @@ def hardware():
             try:mem[k]=int(v.strip().split()[0])*1024
             except (ValueError,IndexError):pass
     base['system_storage']=system_storage()
+    base['managed_storage_health']=managed_storage_health()
     names=load().get('nas_display_names',{})
     if isinstance(names,dict):
         for user in base.get('nas_user_list',[]):

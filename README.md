@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Release status:** PiNAS v1.0.3 is the latest published release. v1.0.4 is an unreleased reliability and recovery candidate for hardware testing; it is not yet on `main`. Keep independent backups of important files, particularly before changing storage or RAID configurations.
+> **Release status:** PiNAS v1.0.3 is the latest published release. v1.0.4 has been tested and merged. v1.0.5 is an unreleased storage-safety development candidate for hardware testing, not yet on `main`. Keep independent backups of important files, particularly before changing storage or RAID configurations.
 
 ## Features
 
@@ -15,6 +15,8 @@
 - NAS service health and reboot warnings, checked when Overview is opened or refreshed.
 
 ### Storage and RAID
+- v1.0.5 candidate: warn about missing, unmounted or mismatched PiNAS-managed UUID data mounts and degraded mdadm arrays, without automatic repairs.
+- Revalidate the selected filesystem against current hardware before a privileged storage adoption operation.
 - Discover attached drives and supported **ext4, XFS and Btrfs** filesystems, including additional Btrfs detection where required.
 - Inspect mounts and adopt existing formatted drives, with persistent mounting and applicable filesystem options.
 - Access RAID management and discovery using `mdadm` when supported by the hardware and connected drives.
@@ -151,7 +153,7 @@ Edit the files in `src/pinas/` and regenerate `pinas.py`; **do not maintain the 
 ### Branches
 
 - `main`: reviewed/tested baseline.
-- `develop/v1.0.4-reliability-recovery`: isolated v1.0.4 candidate under review, with no automatic publication.
+- `develop/v1.0.5-storage-safety`: isolated v1.0.5 candidate under review, with no automatic publication.
 - Feature and fix branches: proposed changes reviewed using pull requests.
 
 ## Scope and known limitations
@@ -174,3 +176,7 @@ See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The
 ## v1.0.4 development milestone
 
 See [v1.0.4 reliability and recovery notes](docs/releases/v1.0.4.md). This candidate is intentionally **not a published release**; merge only after Raspberry Pi smoke testing and keep the next public release for v1.0.6 if planned.
+
+## v1.0.5 development milestone
+
+See [v1.0.5 storage safety and testing notes](docs/releases/v1.0.5.md). This remains **unreleased** until Raspberry Pi testing, with the next planned public release targeted at v1.0.6.
