@@ -15,6 +15,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE.encode());return
+        if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return
         if path=='/api/pinas-upgrade':
             _,session=self.session()
             if not session or session.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
