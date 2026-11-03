@@ -16,6 +16,7 @@ for node in TREE.body:
             if isinstance(target,ast.Name) and target.id in ('NAS_MINIDLNA_HELPER','PAGE'):
                 EMBEDDED[target.id]=ast.literal_eval(node.value)
 
+@unittest.skipUnless('NAS_MINIDLNA_HELPER' in EMBEDDED, 'MiniDLNA helper not present in this source branch')
 class MiniDLNATests(unittest.TestCase):
     def test_helper_compiles(self):
         compile(EMBEDDED['NAS_MINIDLNA_HELPER'],'pinas-minidlna','exec')
