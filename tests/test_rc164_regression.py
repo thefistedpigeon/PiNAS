@@ -17,7 +17,7 @@ SOURCE = pathlib.Path(__file__).resolve().parents[1] / "pinas.py"
 class SingleFileRegressions(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = SOURCE.read_text(encoding="utf-8")
+        cls.source = '\n'.join((SOURCE.parent / 'src' / 'pinas' / name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
         cls.tree = ast.parse(cls.source, filename=str(SOURCE))
         cls.constants = {}
         for node in cls.tree.body:
