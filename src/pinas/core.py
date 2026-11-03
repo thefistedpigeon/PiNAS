@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='1.0.3'
+VERSION='1.0.4'
 DATA=Path(os.environ.get('PINAS_DATA','/var/lib/pinas' if sys.platform=='linux' else str(Path.home()/'.local/share/pinas')))
 CONFIG=DATA/'config.json'
 SESSIONS={}
@@ -157,6 +157,55 @@ def save(config):
     tmp=DATA/('config-'+secrets.token_hex(4)+'.tmp')
     tmp.write_text(json.dumps(config,indent=2))
     os.chmod(tmp,0o600); os.replace(tmp,CONFIG)
+
+# Only non-secret, device-local settings are portable. Linux/Samba users, credentials,
+# mounts and data volumes must be recovered separately, never modified by this import.
+BACKUP_SETTINGS={
+    'theme':('light','dark'),
+    'font':(10,12,14,16),
+    'cpu_interval':(2,5,10),
+    'cpu_history':(10,15,30,60),
+    'session_timeout':(5,10,15,30,60),
+}
+
+def configuration_backup(cfg):
+    """Create a non-secret recovery manifest without touching NAS storage."""
+    settings={key:cfg[key] for key in BACKUP_SETTINGS
+              if key in cfg and type(cfg[key]) is type(BACKUP_SETTINGS[key][0])
+              and cfg[key] in BACKUP_SETTINGS[key]}
+    names=cfg.get('nas_display_names',{})
+    if not isinstance(names,dict):names={}
+    names={key:value for key,value in names.items()
+           if isinstance(key,str) and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',key)
+           and valid_display_name(value)}
+    return {
+        'format':'pinas-configuration-v1',
+        'version':VERSION,
+        'created_at':int(time.time()),
+        'settings':settings,
+        'display_names':names,
+        'accounts':[u['name'] for u in nas_user_list() if isinstance(u,dict) and isinstance(u.get('name'),str)],
+        'shares':nas_share_list(),
+        'restore_scope':'settings-and-display-names-only',
+        'warning':'User accounts, SMB credentials, shares, mounts, RAID, and files are inventory only; restore them separately.',
+    }
+
+def validate_configuration_restore(backup):
+    """Strictly validate a settings-only backup before changing any configuration."""
+    if not isinstance(backup,dict) or backup.get('format')!='pinas-configuration-v1' or backup.get('restore_scope')!='settings-and-display-names-only':
+        raise ValueError('Unsupported PiNAS configuration backup format')
+    if not isinstance(backup.get('settings'),dict) or not isinstance(backup.get('display_names'),dict):
+        raise ValueError('Configuration settings or display names are missing')
+    settings=backup['settings']
+    if any(key not in BACKUP_SETTINGS or type(value) is not type(BACKUP_SETTINGS[key][0])
+           or value not in BACKUP_SETTINGS[key] for key,value in settings.items()):
+        raise ValueError('Backup contains invalid configuration settings')
+    names=backup['display_names']
+    if len(names)>128 or any(not isinstance(key,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',key)
+                             or not valid_display_name(value) for key,value in names.items()):
+        raise ValueError('Backup contains invalid account display names')
+    # Do not trust file-supplied credentials, paths, passwords or shares.
+    return settings.copy(),names.copy()
 
 def hash_password(password,salt=None):
     salt=salt or secrets.token_bytes(16)
