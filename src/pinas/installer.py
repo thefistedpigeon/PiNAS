@@ -10,6 +10,14 @@ def expand_modules(target):
         tmp.write_text(source,encoding='utf-8')
         os.chmod(tmp,0o644)
         os.replace(tmp,destination)
+    # Browser-based upgrades invoke --extract-modules as root. Synchronise the
+    # narrowly scoped APT helper and sudo rule too, otherwise scheduled updates
+    # would continue to use the older, non-logging helper after a GUI upgrade.
+    if Path('/usr/local/libexec/pinas-apt-index').is_file():
+        install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,
+          ["refresh","upgrade","firmware-check","schedule off","schedule daily",
+           "schedule weekly","schedule monthly","reboot","prune 6","prune 12",
+           "restart-auto timer","restart-auto service"])
 
 def install_privileged_helper(name, source, allowed_commands):
     """Install a root-owned helper with a validated, narrowly scoped sudoers rule."""
@@ -88,7 +96,7 @@ def install(args):
     updater_helper=install_privileged_helper('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"])
     storage_helper=install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
     smart_helper=install_privileged_helper('pinas-smart-health',SMART_HEALTH_HELPER,[""])
-    apt_helper=install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily","schedule weekly","schedule monthly","reboot"])
+    apt_helper=install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily","schedule weekly","schedule monthly","reboot","prune 6","prune 12","restart-auto timer","restart-auto service"])
     auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
     auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
     os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
