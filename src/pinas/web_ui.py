@@ -104,7 +104,34 @@ async function checkSmartHealth(){
  }catch(error){message.textContent='Unable to read disk health: '+error.message}
  finally{diskSmartBusy=false;if(button)button.disabled=false}
 }
-async function refreshServiceHealth(){
+async async function restartAutomaticUpdate(unit){
+ const description=unit==='service'?'This will start an automatic APT upgrade now. Services may temporarily restart.':'This will restart the automatic-update timer with its saved schedule.';
+ const password=await fileTextDialog({title:'Restart automatic updates',label:'Administrator password',description,confirmLabel:'Restart',password:true});
+ if(password===null)return;
+ try{
+  await post('/api/updates',{action:'restart-auto',unit,admin_password:password});
+  if(page==='Overview')await refreshServiceHealth();
+  if(page==='Updates')await loadUpdateUnitHealth();
+ }catch(error){
+  const target=document.getElementById(page==='Updates'?'update-unit-health':'service-health-warnings');
+  if(target)target.textContent='Unable to restart automatic updates: '+error.message;
+ }
+}
+function bindUpdateRestartActions(root){
+ if(root)root.querySelectorAll('[data-restart-auto]').forEach(button=>button.onclick=()=>restartAutomaticUpdate(button.dataset.restartAuto));
+}
+async function loadUpdateUnitHealth(){
+ const panel=document.getElementById('update-unit-health');if(!panel)return;
+ panel.textContent='Checking automatic update units…';
+ try{
+  const response=await fetch('/api/service-health',{cache:'no-store'}),result=await response.json();
+  if(!response.ok)throw Error(result.error||'Service health unavailable');
+  panel.innerHTML=(result.services||[]).filter(s=>['pinas-auto-updates.timer','pinas-auto-updates.service'].includes(s.unit)).map(s=>
+   `<div class="line"><div><strong>${esc(s.name)}</strong><span class="small">${esc(s.detail)}</span></div><div class="update-unit-action"><span class="pill ${s.state==='healthy'?'good':''}">${esc(s.state)}</span>${s.restart_action?`<button class="btn outline" data-restart-auto="${esc(s.restart_action)}">Restart</button>`:''}</div></div>`).join('');
+  bindUpdateRestartActions(panel);
+ }catch(error){panel.textContent='Update service status unavailable: '+error.message}
+}
+function refreshServiceHealth(){
     const target=document.getElementById('service-health-results');
     const notices=document.getElementById('service-health-warnings');
     const button=document.getElementById('refresh-service-health');
@@ -116,7 +143,7 @@ async function refreshServiceHealth(){
         const data=await response.json();
         if(!response.ok)throw Error(data.error||'Service health unavailable');
         const stateText={healthy:'Running',warning:'Attention',inactive:'Stopped','not-installed':'Not installed',pending:'Starting',unknown:'Unavailable'};
-        target.innerHTML=(data.services||[]).map(s=>'<div class="line"><div><strong>'+esc(s.name)+'</strong><span class="small">'+esc(s.unit)+'</span></div><div><span class="pill '+(s.state==='healthy'?'good':'')+'">'+esc(stateText[s.state]||'Unavailable')+'</span><span class="small">'+esc(s.detail)+'</span></div></div>').join('');
+        target.innerHTML=(data.services||[]).map(s=>'<div class="line"><div><strong>'+esc(s.name)+'</strong><span class="small">'+esc(s.unit)+'</span></div><div class="update-unit-action"><span class="pill '+(s.state==='healthy'?'good':'')+'">'+esc(stateText[s.state]||'Unavailable')+'</span><span class="small">'+esc(s.detail)+'</span>'+(s.restart_action?'<button class="btn outline" type="button" data-restart-auto="'+esc(s.restart_action)+'">Restart</button>':'')+'</div></div>').join('');bindUpdateRestartActions(target);
         notices.innerHTML=(data.warnings||[]).length?'<h3>System messages</h3>'+(data.warnings||[]).map(w=>'<p class="small"><strong>'+esc(w.name)+':</strong> '+esc(w.message)+'</p>').join(''):'';
     }catch(error){target.textContent='Unable to check services: '+error.message;notices.textContent=''}finally{if(button)button.disabled=false}
 }
