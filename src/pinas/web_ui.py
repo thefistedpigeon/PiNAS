@@ -104,7 +104,7 @@ async function checkSmartHealth(){
  }catch(error){message.textContent='Unable to read disk health: '+error.message}
  finally{diskSmartBusy=false;if(button)button.disabled=false}
 }
-async async function restartAutomaticUpdate(unit){
+async function restartAutomaticUpdate(unit){
  const description=unit==='service'?'This will start an automatic APT upgrade now. Services may temporarily restart.':'This will restart the automatic-update timer with its saved schedule.';
  const password=await fileTextDialog({title:'Restart automatic updates',label:'Administrator password',description,confirmLabel:'Restart',password:true});
  if(password===null)return;
@@ -131,7 +131,7 @@ async function loadUpdateUnitHealth(){
   bindUpdateRestartActions(panel);
  }catch(error){panel.textContent='Update service status unavailable: '+error.message}
 }
-function refreshServiceHealth(){
+async function refreshServiceHealth(){
     const target=document.getElementById('service-health-results');
     const notices=document.getElementById('service-health-warnings');
     const button=document.getElementById('refresh-service-health');
