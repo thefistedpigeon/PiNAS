@@ -41,7 +41,7 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 .modal-overlay .modal-heading{flex-shrink:0}
 .modal-overlay .modal-actions{flex-wrap:wrap;row-gap:10px}
 .modal-overlay .modal-actions>.btn{white-space:normal}
-.modal-overlay .field input,.modal-overlay .field select{min-width:0}
+.modal-overlay .field input,.modal-overlay .field select{min-width:0}.disk-danger-consent span{display:flex;align-items:center;gap:10px}.modal-overlay .disk-danger-consent input[type="checkbox"]{width:18px;height:18px;min-width:18px;max-width:18px;padding:0;margin:0;flex:none;accent-color:var(--accent)}
 .modal-overlay [role="status"]{overflow-wrap:anywhere}
 @media(max-width:560px){.modal-overlay>.settings-modal{max-height:calc(100dvh - 16px);padding:16px}.modal-overlay .modal-actions>.btn{flex:1 1 auto}}
 </style></head><body><div id="app"></div><script>
@@ -252,20 +252,84 @@ function openNasShareWizard(){
 }
 const FS_GUIDE={ext4:['Recommended for most users','Simple, reliable Linux filesystem. A good default for general NAS storage.'],xfs:['Large files and media','Well suited to large files and sustained throughput; shrinking is not supported.'],btrfs:['Snapshots and data integrity','Checksums and snapshots; more advanced maintenance and memory requirements.']};
 const DISK_ACTION_ICONS={"wipe":"<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" aria-hidden=\"true\"><g fill=\"none\"><path fill=\"currentColor\" d=\"M18.34 20.81c.94 0 1.42 0 1.8-.1a3 3 0 0 0 2.1-2.1c.11-.4.11-.87.11-1.81s0-1.42-.1-1.81a3 3 0 0 0-2.1-2.1c-.4-.11-.87-.11-1.81-.11H5.66c-.94 0-1.42 0-1.8.1a3 3 0 0 0-2.1 2.1c-.11.4-.11.87-.11 1.82c0 .94 0 1.42.1 1.8a3 3 0 0 0 2.1 2.1c.4.11.87.11 1.81.11z\" opacity=\".2\"/><path stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M18.34 20.81H5.66c-.94 0-1.42 0-1.8-.1a3 3 0 0 1-2.1-2.1c-.11-.4-.11-.87-.11-1.81s0-1.42.1-1.81a3 3 0 0 1 2.1-2.1c.4-.11.87-.11 1.81-.11h12.68c.94 0 1.42 0 1.8.1a3 3 0 0 1 2.1 2.1c.11.4.11.87.11 1.82c0 .94 0 1.42-.1 1.8a3 3 0 0 1-2.1 2.1c-.4.11-.87.11-1.81.11\"/><path fill=\"currentColor\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M5.79 16.24a.57.57 0 1 1 0 1.14a.57.57 0 0 1 0-1.14m4.73 0a.57.57 0 1 1 0 1.14a.57.57 0 0 1 0-1.14\"/><path stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M14.62 3.74L9.4 8.98m-.01-5.25l5.23 5.24\"/></g></svg>","format":"<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" aria-hidden=\"true\"><g fill=\"none\"><path fill=\"currentColor\" d=\"M18.34 20.25c.94 0 1.42 0 1.8-.11a3 3 0 0 0 2.1-2.1c.11-.4.11-.86.11-1.81s0-1.42-.1-1.81a3 3 0 0 0-2.1-2.1c-.4-.11-.87-.11-1.81-.11H5.66c-.94 0-1.42 0-1.8.1a3 3 0 0 0-2.1 2.11c-.11.39-.11.86-.11 1.8c0 .96 0 1.43.1 1.82a3 3 0 0 0 2.1 2.1c.4.1.87.1 1.81.1z\" opacity=\".2\"/><path stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M5.64 12.21c-.93 0-1.39 0-1.77.1a3 3 0 0 0-2.12 2.13c-.1.38-.1.84-.1 1.78s0 1.43.1 1.82a3 3 0 0 0 2.1 2.1c.4.1.87.1 1.81.1h12.68c.94 0 1.42 0 1.8-.1a3 3 0 0 0 2.1-2.1c.11-.4.11-.87.11-1.82c0-.94 0-1.4-.1-1.78a3 3 0 0 0-2.12-2.13c-.38-.1-.84-.1-1.77-.1\"/><path fill=\"currentColor\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M5.79 15.67a.57.57 0 1 1 0 1.14a.57.57 0 0 1 0-1.14m4.73 0a.57.57 0 1 1 0 1.14a.57.57 0 0 1 0-1.14\"/><path stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M15.84 6.27c-1.36-1.78-2.7-2.12-3.78-2.12a3.96 3.96 0 1 0 2.78 6.78\"/><path stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M16.36 3.75v.04c0 1.42 0 2.12-.44 2.56c-.43.44-1.14.44-2.56.44h-.04\"/></g></svg>","mount":"<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" aria-hidden=\"true\"><g fill=\"none\"><path fill=\"currentColor\" d=\"M18.34 20.81c.94 0 1.42 0 1.8-.1a3 3 0 0 0 2.1-2.1c.11-.4.11-.87.11-1.81s0-1.42-.1-1.81a3 3 0 0 0-2.1-2.1c-.4-.11-.87-.11-1.81-.11H5.66c-.94 0-1.42 0-1.8.1a3 3 0 0 0-2.1 2.1c-.11.4-.11.87-.11 1.82c0 .94 0 1.42.1 1.8a3 3 0 0 0 2.1 2.1c.4.11.87.11 1.81.11z\" opacity=\".2\"/><path stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M18.34 20.81H5.66c-.94 0-1.42 0-1.8-.1a3 3 0 0 1-2.1-2.1c-.11-.4-.11-.87-.11-1.81s0-1.42.1-1.81a3 3 0 0 1 2.1-2.1c.4-.11.87-.11 1.81-.11h12.68c.94 0 1.42 0 1.8.1a3 3 0 0 1 2.1 2.1c.11.4.11.87.11 1.82c0 .94 0 1.42-.1 1.8a3 3 0 0 1-2.1 2.1c-.4.11-.87.11-1.81.11\"/><path fill=\"currentColor\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M5.79 16.24a.57.57 0 1 1 0 1.14a.57.57 0 0 1 0-1.14m4.73 0a.57.57 0 1 1 0 1.14a.57.57 0 0 1 0-1.14\"/><path stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M12 3.19v6.33M8.83 6.35h6.34\"/></g></svg>"};
+function confirmDestructiveDisk(d,action){
+ return new Promise(resolve=>{
+  const formatting=action==='format';
+  const title=formatting?'Format Disk':'Wipe Disk';
+  const overlay=document.createElement('div');
+  overlay.className='modal-overlay';
+  const formatChoice=formatting?'<label class="field">Filesystem<select id="disk-danger-filesystem" required><option value="ext4">EXT4</option><option value="xfs">XFS</option><option value="btrfs">Btrfs</option></select></label>':'';
+  const description=formatting?'This removes existing partition metadata and creates a new filesystem directly on the disk. All existing data will be lost.':'This removes the partition table and filesystem signatures. It is a quick wipe, NOT a secure overwrite; the old data may remain recoverable.';
+  overlay.innerHTML='<section class="card settings-modal" role="dialog" aria-modal="true" aria-labelledby="disk-danger-title">'
+   +'<div class="modal-heading"><h2 id="disk-danger-title">'+esc(title)+'</h2><button class="icon-btn" type="button" id="disk-danger-close" aria-label="Close">'+CANCEL_ICON+'</button></div>'
+   +'<form id="disk-danger-form"><div class="settings-scroll">'
+   +'<p class="danger"><strong>High risk: This operation causes irreversible filesystem data loss.</strong></p>'
+   +'<p>'+esc(description)+'</p>'
+   +'<p><strong>'+esc(d.model||d.name)+'</strong> · '+esc(d.path)+' · '+size(d.size)+'</p>'
+   +formatChoice
+   +'<label class="field disk-danger-consent"><span><input id="disk-danger-yes" type="checkbox" required> Yes, I understand that the selected disk may lose all its data.</span></label>'
+   +'<label class="field">Administrator password<input id="disk-danger-password" type="password" maxlength="256" autocomplete="current-password" required></label>'
+   +'<p class="small">Mounted disks, system disks, active RAID devices and disks referenced in fstab are protected.</p>'
+   +'</div><div class="modal-actions"><button class="btn outline" id="disk-danger-cancel" type="button">Cancel</button>'
+   +'<button class="btn danger" id="disk-danger-confirm" type="submit" disabled>Confirm '+esc(title)+'</button></div></form></section>';
+  document.body.appendChild(overlay);
+  const form=overlay.querySelector('#disk-danger-form');
+  const check=overlay.querySelector('#disk-danger-yes');
+  const password=overlay.querySelector('#disk-danger-password');
+  const submit=overlay.querySelector('#disk-danger-confirm');
+  const update=()=>{submit.disabled=!(check.checked&&password.value.length)};
+  check.onchange=update;password.oninput=update;
+  const done=value=>{document.removeEventListener('keydown',onKey);overlay.remove();resolve(value)};
+  const onKey=event=>{if(event.key==='Escape')done(null)};
+  document.addEventListener('keydown',onKey);
+  overlay.querySelector('#disk-danger-close').onclick=()=>done(null);
+  overlay.querySelector('#disk-danger-cancel').onclick=()=>done(null);
+  overlay.onclick=event=>{if(event.target===overlay)done(null)};
+  form.onsubmit=event=>{
+   event.preventDefault();
+   if(!check.checked||!password.value)return;
+   const approval={admin_password:password.value,filesystem:formatting?overlay.querySelector('#disk-danger-filesystem').value:null};
+   password.value='';
+   done(approval);
+  };
+  password.focus();
+ });
+}
 function openDiskWizard(index){
  const d=disks()[index];if(!d)return;
  const managedIssues=(info.managed_storage_health||[]).filter(item=>item.state!=='mounted');
  const overlay=document.createElement('div');overlay.className='modal-overlay';
  const vs=d.volumes||[],supported=vs.filter(v=>['ext4','xfs','btrfs'].includes(v.fs)&&v.uuid&&!v.read_only);
- const hasFilesystem=vs.some(v=>!!v.fs)||!!d.fs;
  const options=[
-  {title:'Wipe Disk',icon:'wipe',description:'Erase all data and partition information from a disk. Any existing data on the disk will be lost.',disabled:true,reason:'Unavailable until destructive-operation protection is implemented.'},
-  {title:'Format Disk',icon:'format',description:hasFilesystem?'Prepare the drive with a new filesystem ready to be mounted. Warning: all existing data will be lost.':'Prepare the drive with a filesystem ready to be mounted. Formatting erases any data on the selected device.',disabled:true,reason:'Unavailable until formatting safety checks are implemented.'},
-  {title:'Mount Disk',icon:'mount',description:'Make the disk ready for NAS storage. Existing supported filesystems can be adopted without erasing data.',disabled:false}
+  {title:'Wipe Disk',icon:'wipe',id:'disk-wipe',description:'Remove filesystem signatures and partition tables (quick wipe, not secure erase). Existing data will become inaccessible.',disabled:false},
+  {title:'Format Disk',icon:'format',id:'disk-format',description:'Erase existing partitions and create an EXT4, XFS or Btrfs filesystem. All existing data will be lost.',disabled:false},
+  {title:'Mount Disk',icon:'mount',id:'disk-mount',description:'Make the disk ready for NAS storage. Existing supported filesystems can be adopted without erasing data.',disabled:false}
  ];
- overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Manage disk" tabindex="-1"><div class="modal-heading"><h2>Manage Disk</h2><button class="icon-btn" id="disk-close" aria-label="Close">${CANCEL_ICON}</button></div><div class="settings-scroll"><p><strong>${esc(d.model||d.name)}</strong> · ${size(d.size)} · ${esc(d.path)}</p>${managedIssues.length?'<p class="hint">One or more configured drives need attention. Check drive identity and mounts before adopting storage.</p>':''}${options.map((o,i)=>`<div class="disk-management-action"><div><strong>${esc(o.title)}</strong><p class="small">${esc(o.description)}</p>${o.disabled?`<p class="small">${esc(o.reason)}</p>`:''}</div><button class="btn ${i===0?'outline':''} button-with-icon action-icon-btn" ${o.disabled?'disabled title="Not yet available"':`id="disk-mount"`} type="button">${DISK_ACTION_ICONS[o.icon]}<span>${esc(o.title)}</span></button></div>`).join('')}<div id="disk-mount-options" class="hidden"><h3>Existing filesystems</h3>${supported.length?supported.map(v=>`<div class="storage-volume"><strong>${esc(v.fs.toUpperCase())}</strong> · ${esc(v.name)}<p class="small">${v.mounts.length?'Mounted at '+esc(v.mounts.join(', ')):'Not mounted'} · ${v.persistent?'Persistent':'Not configured for startup'}</p>${!v.persistent||!v.mounts.length?`<button class="btn outline" data-adopt="${esc(v.path)}">Adopt without formatting</button>`:'<p class="hint">Ready for NAS shares.</p>'}</div>`).join(''):'<p class="hint">No supported existing filesystem with a UUID was found. Formatting is not yet available.</p>'}</div><div id="disk-message" role="status"></div></div><div class="modal-actions"><button class="btn outline" id="disk-cancel">Close</button></div></section>`;
+ overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Manage disk" tabindex="-1"><div class="modal-heading"><h2>Manage Disk</h2><button class="icon-btn" id="disk-close" aria-label="Close">${CANCEL_ICON}</button></div><div class="settings-scroll"><p><strong>${esc(d.model||d.name)}</strong> · ${size(d.size)} · ${esc(d.path)}</p>${managedIssues.length?'<p class="hint">One or more configured drives need attention. Check drive identity and mounts before adopting storage.</p>':''}${options.map((o,i)=>`<div class="disk-management-action"><div><strong>${esc(o.title)}</strong><p class="small">${esc(o.description)}</p>${o.disabled?`<p class="small">${esc(o.reason)}</p>`:''}</div><button class="btn ${o.id==='disk-mount'?'':'danger'} ${i===0?'outline':''} button-with-icon action-icon-btn" id="${o.id}" type="button">${DISK_ACTION_ICONS[o.icon]}<span>${esc(o.title)}</span></button></div>`).join('')}<div id="disk-mount-options" class="hidden"><h3>Existing filesystems</h3>${supported.length?supported.map(v=>`<div class="storage-volume"><strong>${esc(v.fs.toUpperCase())}</strong> · ${esc(v.name)}<p class="small">${v.mounts.length?'Mounted at '+esc(v.mounts.join(', ')):'Not mounted'} · ${v.persistent?'Persistent':'Not configured for startup'}</p>${!v.persistent||!v.mounts.length?`<button class="btn outline" data-adopt="${esc(v.path)}">Adopt without formatting</button>`:'<p class="hint">Ready for NAS shares.</p>'}</div>`).join(''):'<p class="hint">No supported existing filesystem with a UUID was found. Use Format Disk to create a supported filesystem first.</p>'}</div><div id="disk-message" role="status"></div></div><div class="modal-actions"><button class="btn outline" id="disk-cancel">Close</button></div></section>`;
  document.body.appendChild(overlay);const close=()=>{document.removeEventListener('keydown',onKey);overlay.remove()};const onKey=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',onKey);overlay.querySelector('#disk-close').onclick=close;overlay.querySelector('#disk-cancel').onclick=close;overlay.onclick=e=>{if(e.target===overlay)close()};
  overlay.querySelector('#disk-mount').onclick=()=>overlay.querySelector('#disk-mount-options').classList.toggle('hidden');
+ for(const action of ['wipe','format']){
+  const button=overlay.querySelector('#disk-'+action);
+  button.onclick=async()=>{
+   const approved=await confirmDestructiveDisk(d,action);
+   if(!approved)return;
+   button.disabled=true;
+   const message=overlay.querySelector('#disk-message');
+   message.textContent=action==='format'?'Formatting selected disk…':'Removing partition and filesystem signatures…';
+   try{
+    const result=await post('/api/disk-destructive',{action,device:d.path,expected_size:Number(d.size),filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password});
+    message.textContent=result.message||'Disk operation complete.';
+    const response=await fetch('/api/state',{cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.error||'Unable to refresh disks');
+    info=data.hardware||info;
+    close();
+    render();
+   }catch(error){
+    message.textContent='Disk operation: '+error.message;
+   }finally{button.disabled=false}
+  };
+ }
  overlay.querySelectorAll('[data-adopt]').forEach(btn=>btn.onclick=async()=>{const device=btn.dataset.adopt;const password=await fileTextDialog({title:'Authorise storage adoption',label:'Administrator password',description:'PiNAS will preserve existing files and configure a UUID-based mount. The device will not be formatted.',confirmLabel:'Configure storage',password:true});if(password===null)return;btn.disabled=true;const msg=overlay.querySelector('#disk-message');msg.textContent='Configuring storage…';try{const result=await post('/api/storage',{device,admin_password:password});msg.textContent='Storage mounted at '+result.mount;const j=await (await fetch('/api/state',{cache:'no-store'})).json();info=j.hardware||info;close();render()}catch(e){msg.textContent=e.message;btn.disabled=false}});
  overlay.querySelector('.storage-wizard').focus();
 }
