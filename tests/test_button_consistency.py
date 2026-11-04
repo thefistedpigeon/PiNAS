@@ -21,14 +21,15 @@ class ButtonVisualConsistency(unittest.TestCase):
         self.assertIn("document.querySelectorAll('[data-disk]').forEach(b=>b.onclick=()=>openDiskWizard(Number(b.dataset.disk)))",PAGE)
         self.assertIn('M20.88 5.23v13.73',PAGE)
 
-    def test_destructive_actions_remain_disabled(self):
-        self.assertIn("{title:'Wipe Disk',icon:'wipe',description:",PAGE)
-        self.assertIn("{title:'Format Disk',icon:'format',description:",PAGE)
-        self.assertNotIn("hasFilesystem?'Reformat Disk':'Format Disk'",PAGE)
-        self.assertIn("disabled:true,reason:'Unavailable until destructive-operation protection is implemented.'",PAGE)
-        self.assertIn("disabled:true,reason:'Unavailable until formatting safety checks are implemented.'",PAGE)
-        self.assertIn('disabled title="Not yet available"',PAGE)
-        self.assertIn("id=\"disk-mount\"",PAGE)
+    def test_destructive_buttons_require_confirmed_authorisation(self):
+        self.assertIn("{title:'Wipe Disk',icon:'wipe',id:'disk-wipe'",PAGE)
+        self.assertIn("{title:'Format Disk',icon:'format',id:'disk-format'",PAGE)
+        self.assertIn("disabled:false",PAGE)
+        self.assertIn("function confirmDestructiveDisk(d,action)",PAGE)
+        self.assertIn('id="disk-danger-yes" type="checkbox" required',PAGE)
+        self.assertIn('id="disk-danger-password" type="password"',PAGE)
+        self.assertIn("submit.disabled=!(check.checked&&password.value.length)",PAGE)
+        self.assertIn("action,device:d.path,filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password",PAGE)
         self.assertIn("overlay.querySelector('#disk-mount').onclick=",PAGE)
         self.assertIn("DISK_ACTION_ICONS[o.icon]",PAGE)
         self.assertIn('M14.62 3.74L9.4 8.98',PAGE)
