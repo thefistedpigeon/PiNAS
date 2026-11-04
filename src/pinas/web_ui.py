@@ -309,6 +309,28 @@ function openDiskWizard(index){
  overlay.innerHTML=`<section class="card settings-modal storage-wizard" role="dialog" aria-modal="true" aria-label="Manage disk" tabindex="-1"><div class="modal-heading"><h2>Manage Disk</h2><button class="icon-btn" id="disk-close" aria-label="Close">${CANCEL_ICON}</button></div><div class="settings-scroll"><p><strong>${esc(d.model||d.name)}</strong> · ${size(d.size)} · ${esc(d.path)}</p>${managedIssues.length?'<p class="hint">One or more configured drives need attention. Check drive identity and mounts before adopting storage.</p>':''}${options.map((o,i)=>`<div class="disk-management-action"><div><strong>${esc(o.title)}</strong><p class="small">${esc(o.description)}</p>${o.disabled?`<p class="small">${esc(o.reason)}</p>`:''}</div><button class="btn ${i===0?'outline':''} button-with-icon action-icon-btn" id="${o.id}" type="button">${DISK_ACTION_ICONS[o.icon]}<span>${esc(o.title)}</span></button></div>`).join('')}<div id="disk-mount-options" class="hidden"><h3>Existing filesystems</h3>${supported.length?supported.map(v=>`<div class="storage-volume"><strong>${esc(v.fs.toUpperCase())}</strong> · ${esc(v.name)}<p class="small">${v.mounts.length?'Mounted at '+esc(v.mounts.join(', ')):'Not mounted'} · ${v.persistent?'Persistent':'Not configured for startup'}</p>${!v.persistent||!v.mounts.length?`<button class="btn outline" data-adopt="${esc(v.path)}">Adopt without formatting</button>`:'<p class="hint">Ready for NAS shares.</p>'}</div>`).join(''):'<p class="hint">No supported existing filesystem with a UUID was found. Use Format Disk to create a supported filesystem first.</p>'}</div><div id="disk-message" role="status"></div></div><div class="modal-actions"><button class="btn outline" id="disk-cancel">Close</button></div></section>`;
  document.body.appendChild(overlay);const close=()=>{document.removeEventListener('keydown',onKey);overlay.remove()};const onKey=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',onKey);overlay.querySelector('#disk-close').onclick=close;overlay.querySelector('#disk-cancel').onclick=close;overlay.onclick=e=>{if(e.target===overlay)close()};
  overlay.querySelector('#disk-mount').onclick=()=>overlay.querySelector('#disk-mount-options').classList.toggle('hidden');
+ for(const action of ['wipe','format']){
+  const button=overlay.querySelector('#disk-'+action);
+  button.onclick=async()=>{
+   const approved=await confirmDestructiveDisk(d,action);
+   if(!approved)return;
+   button.disabled=true;
+   const message=overlay.querySelector('#disk-message');
+   message.textContent=action==='format'?'Formatting selected disk…':'Removing partition and filesystem signatures…';
+   try{
+    const result=await post('/api/disk-destructive',{action,device:d.path,filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password});
+    message.textContent=result.message||'Disk operation complete.';
+    const response=await fetch('/api/state',{cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.error||'Unable to refresh disks');
+    info=data.hardware||info;
+    close();
+    render();
+   }catch(error){
+    message.textContent='Disk operation: '+error.message;
+   }finally{button.disabled=false}
+  };
+ }
  overlay.querySelectorAll('[data-adopt]').forEach(btn=>btn.onclick=async()=>{const device=btn.dataset.adopt;const password=await fileTextDialog({title:'Authorise storage adoption',label:'Administrator password',description:'PiNAS will preserve existing files and configure a UUID-based mount. The device will not be formatted.',confirmLabel:'Configure storage',password:true});if(password===null)return;btn.disabled=true;const msg=overlay.querySelector('#disk-message');msg.textContent='Configuring storage…';try{const result=await post('/api/storage',{device,admin_password:password});msg.textContent='Storage mounted at '+result.mount;const j=await (await fetch('/api/state',{cache:'no-store'})).json();info=j.hardware||info;close();render()}catch(e){msg.textContent=e.message;btn.disabled=false}});
  overlay.querySelector('.storage-wizard').focus();
 }
