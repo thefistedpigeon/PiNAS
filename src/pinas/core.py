@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """PiNAS lightweight NAS management interface (stdlib only)."""
-import ssl, ipaddress, re, argparse, base64, hashlib, hmac, json, os, secrets, shutil, socket, subprocess, sys, time, threading
+import ssl, ipaddress, re, argparse, base64, hashlib, hmac, json, os, secrets, shutil, socket, sqlite3, subprocess, sys, time, threading
 from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='1.0.6'
+VERSION='1.0.7'
 # A fresh identifier per service process lets browsers detect an update restart,
 # even when the application is updated without changing its version number.
 SERVER_INSTANCE=secrets.token_hex(16)
@@ -51,6 +51,27 @@ def login_succeeded(ip):
 
 UPDATE_LOCK=threading.Lock()
 UPDATE_STATUS={'running':False,'operation':'','last_check':None,'last_install':None,'error':'','output':''}
+
+UPDATE_HISTORY_DB=Path('/var/lib/pinas-update-history/updates.sqlite3')
+
+def update_history(limit=40):
+    """Read a short recent history, with no write transactions or periodic polling."""
+    if not UPDATE_HISTORY_DB.is_file():return []
+    try:
+        with sqlite3.connect(UPDATE_HISTORY_DB.as_uri()+'?mode=ro',uri=True,timeout=2) as db:
+            db.row_factory=sqlite3.Row
+            rows=db.execute('SELECT started_at,completed_at,source,result,packages,summary FROM update_events ORDER BY id DESC LIMIT ?', (min(max(int(limit),1),100),)).fetchall()
+        history=[]
+        for row in rows:
+            try:packages=json.loads(row['packages'])
+            except (ValueError,TypeError):packages=[]
+            history.append({'started_at':row['started_at'],'completed_at':row['completed_at'],
+                            'source':row['source'],'result':row['result'],
+                            'packages':packages if isinstance(packages,list) else [],
+                            'summary':row['summary']})
+        return history
+    except (sqlite3.Error,OSError,ValueError):
+        return []
 
 def package_updates():
     """Read APT's existing indexes; no privileged commands or network calls."""
@@ -515,34 +536,52 @@ def hardware_discovery():
     return {'model':model,'hostname':socket.gethostname(),'disks':disks,'raid':raid,'shares':shares,'packages':{x:bool(shutil.which(x)) for x in ('smbd','mkfs.xfs','mkfs.btrfs','mdadm')},'nas_users':nas_user_count(),'nas_user_list':nas_user_list(),'share_details':nas_share_list()}
 
 def service_health():
-    """Read-only, on-demand systemd snapshot; no background monitoring."""
-    names=(('Samba file sharing','smbd.service'),('Samba name service','nmbd.service'),('SSH access','ssh.service'),('Network manager','NetworkManager.service'),('Scheduled updates','pinas-auto-updates.timer'))
+    """On-demand systemd health; an inactive completed oneshot is normal."""
+    schedule=read(DATA/'update-schedule')
+    auto_enabled=schedule in ('daily','weekly','monthly')
+    names=(('Samba file sharing','smbd.service'),('Samba name service','nmbd.service'),
+           ('SSH access','ssh.service'),('Network manager','NetworkManager.service'),
+           ('Automatic updates timer','pinas-auto-updates.timer'),
+           ('Automatic updates service','pinas-auto-updates.service'))
     results=[]
     for label,unit in names:
         item={'name':label,'unit':unit,'state':'unknown','detail':'Status unavailable'}
+        if unit.startswith('pinas-auto-updates.') and not auto_enabled:
+            item.update(state='inactive',detail='Automatic updates disabled in schedule')
+            results.append(item);continue
         try:
-            p=subprocess.run(['systemctl','show',unit,'--property=LoadState,ActiveState,SubState,UnitFileState','--no-pager'],
-                             capture_output=True,text=True,timeout=4,check=False)
+            p=subprocess.run(['systemctl','show',unit,
+                '--property=LoadState,ActiveState,SubState,UnitFileState,Result',
+                '--no-pager'],capture_output=True,text=True,timeout=4,check=False)
             if p.returncode:raise OSError('systemctl unavailable')
             fields=dict(line.split('=',1) for line in p.stdout.splitlines() if '=' in line)
             loaded=fields.get('LoadState','')
             active=fields.get('ActiveState','unknown')
+            result=fields.get('Result','')
+            enabled=fields.get('UnitFileState','')
             if loaded=='not-found':
-                item.update(state='not-installed',detail='Unit not installed')
+                item.update(state='warning' if auto_enabled and unit.startswith('pinas-auto-') else 'not-installed',
+                            detail='Unit not installed')
             elif loaded in ('masked','error','bad-setting'):
                 item.update(state='warning',detail='Unit '+loaded)
-            elif active=='failed':
-                item.update(state='warning',detail='Service failed')
+            elif active=='failed' or (unit.endswith('.service') and unit.startswith('pinas-auto-') and result not in ('','success') and active!='activating'):
+                item.update(state='warning',detail='Last run failed ('+str(result or active)[:48]+')')
+            elif unit=='pinas-auto-updates.service':
+                if active=='activating':item.update(state='pending',detail='Scheduled update running')
+                elif active in ('inactive','active'):item.update(state='healthy',detail='Last run succeeded or waiting for next schedule')
+                else:item.update(state='unknown',detail='State: '+str(active)[:32])
             elif active=='active':
                 item.update(state='healthy',detail='Active ('+fields.get('SubState','running')+')')
             elif active=='inactive':
-                enabled=fields.get('UnitFileState','')
-                item.update(state='warning' if enabled=='enabled' else 'inactive',
+                item.update(state='warning' if (enabled=='enabled' or unit=='pinas-auto-updates.timer') else 'inactive',
                             detail='Inactive'+(' (enabled)' if enabled=='enabled' else ''))
             elif active=='activating':
                 item.update(state='pending',detail='Starting')
             else:
-                item.update(state='unknown',detail='State: '+active[:32])
+                item.update(state='unknown',detail='State: '+str(active)[:32])
+            if (unit.startswith('pinas-auto-updates.') and auto_enabled and
+                item['state']=='warning' and loaded not in ('not-found','masked')):
+                item['restart_action']='timer' if unit.endswith('.timer') else 'service'
         except (OSError,subprocess.TimeoutExpired):
             pass
         results.append(item)
