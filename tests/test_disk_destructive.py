@@ -45,7 +45,7 @@ class DiskDestructiveTests(unittest.TestCase):
         self.assertIn("submit.disabled=!(check.checked&&password.value.length)",PAGE)
         self.assertIn("if(!check.checked||!password.value)return",PAGE)
         self.assertIn("await post('/api/disk-destructive'",PAGE)
-        self.assertIn("action,device:d.path,filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password",PAGE)
+        self.assertIn("action,device:d.path,expected_size:Number(d.size),filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password",PAGE)
         self.assertIn("['wipe','format']",PAGE)
 
     def test_http_revalidates_and_does_not_trust_browser(self):
@@ -54,6 +54,8 @@ class DiskDestructiveTests(unittest.TestCase):
         self.assertIn("confirmation is not True",HTTP)
         self.assertIn("verify(password,(admin_record(cfg,s['username']) or {}).get('password',''))",HTTP)
         self.assertIn("fresh=hardware_discovery()",HTTP)
+        self.assertIn("d.get('size')==expected_size",HTTP)
+        self.assertIn("expected_size!=int(disk.get('size') or 0)",HELPER)
         self.assertIn("'/usr/local/libexec/pinas-disk-erase',action",HTTP)
         self.assertIn("DISCOVERY_CACHE.clear()",HTTP)
 
@@ -78,7 +80,7 @@ class DiskDestructiveTests(unittest.TestCase):
               mock.patch.object(namespace['os'],'close'),
               mock.patch.object(namespace['os'],'fstat',return_value=types.SimpleNamespace(st_mode=stat.S_IFBLK))):
             with self.assertRaisesRegex(ValueError,'Mounted disks'):
-                namespace['checked_disk']('/dev/sda',roots)
+                namespace['checked_disk']('/dev/sda',roots,2000000000)
 
     def test_disk_with_raid_child_refused(self):
         namespace=load_helper()
@@ -93,7 +95,7 @@ class DiskDestructiveTests(unittest.TestCase):
               mock.patch.object(namespace['os'],'close'),
               mock.patch.object(namespace['os'],'fstat',return_value=types.SimpleNamespace(st_mode=stat.S_IFBLK))):
             with self.assertRaisesRegex(ValueError,'RAID'):
-                namespace['checked_disk']('/dev/sda',roots)
+                namespace['checked_disk']('/dev/sda',roots,2000000000)
 
     def test_signature_erasure_targets_parts_before_disk(self):
         namespace=load_helper()
