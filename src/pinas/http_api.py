@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/files','/api/user-preferences','/api/updates','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -288,6 +288,44 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json(result);return
+        if path=='/api/disk-destructive':
+            # High-risk, administrator-only action; confirmation and password
+            # are checked again here, not merely in the browser dialog.
+            if s.get('role')!='admin':
+                self.json({'error':'Administrator access required'},403);return
+            action=data.get('action');device=data.get('device')
+            filesystem=data.get('filesystem');confirmation=data.get('confirm')
+            password=data.get('admin_password')
+            if action not in ('wipe','format') or confirmation is not True:
+                self.json({'error':'Explicit Yes confirmation is required'},400);return
+            if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_-]{1,64}',device):
+                self.json({'error':'Select a valid whole disk'},400);return
+            if (action=='format' and filesystem not in ('ext4','xfs','btrfs')) or (action=='wipe' and filesystem is not None):
+                self.json({'error':'Unsupported filesystem choice'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
+            # Do not trust an old browser disk list or a stale discovery cache.
+            # The privileged helper independently repeats stronger checks.
+            try:
+                fresh=hardware_discovery()
+                targets=[d for d in fresh.get('disks',[]) if d.get('path')==device and
+                         d.get('type')=='disk' and not d.get('read_only')]
+                if len(targets)!=1:
+                    self.json({'error':'Selected data drive changed or is protected. Refresh Storage.'},409);return
+                payload=json.dumps({'device':device,'filesystem':filesystem,
+                                    'confirm':'WIPE' if action=='wipe' else 'FORMAT'})
+                proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-disk-erase',action],
+                                    input=payload,capture_output=True,text=True,timeout=970,check=False)
+                if proc.returncode:
+                    self.json({'error':(proc.stderr or 'Disk operation was refused')[-600:]},409);return
+                result=json.loads(proc.stdout)
+                if result.get('ok') is not True:
+                    raise RuntimeError('Disk helper returned an invalid result')
+                with DISCOVERY_LOCK:
+                    DISCOVERY_CACHE.clear()
+                self.json(result);return
+            except (OSError,subprocess.TimeoutExpired,ValueError,RuntimeError) as exc:
+                self.json({'error':'Disk operation failed: '+str(exc)[:500]},503);return
         if path=='/api/edit-share':
             name=data.get('name');new_name=data.get('new_name');access=data.get('access');password=data.get('admin_password');public=data.get('public',False);public_write=data.get('public_write',False)
             if not all(isinstance(x,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',x) for x in (name,new_name)):
