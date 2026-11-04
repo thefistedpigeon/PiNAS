@@ -53,6 +53,8 @@ class Handler(BaseHTTPRequestHandler):
             result=package_updates()
             with UPDATE_LOCK:result['status']=UPDATE_STATUS.copy();result['firmware']=UPDATE_STATUS.get('firmware',{'state':'unknown'})
             result['reboot_required']=Path('/var/run/reboot-required').exists()
+            result['history']=update_history()
+            result['history_months']=load().get('update_history_months',6)
             try:result['schedule']=(DATA/'update-schedule').read_text().strip()
             except OSError:result['schedule']='off'
             self.json(result);return
@@ -125,7 +127,37 @@ class Handler(BaseHTTPRequestHandler):
         if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
         if path=='/api/updates':
             action=data.get('action')
-            if action not in ('refresh','upgrade','schedule','reboot'):self.json({'error':'Unsupported update action'},400);return
+            if action not in ('refresh','upgrade','schedule','reboot','history-retention','restart-auto'):self.json({'error':'Unsupported update action'},400);return
+            if action=='history-retention':
+                months=data.get('months')
+                if type(months) is not int or months not in (6,12):
+                    self.json({'error':'Select a 6- or 12-month history retention period.'},400);return
+                try:
+                    proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index','prune',str(months)],
+                                        capture_output=True,text=True,timeout=20,check=False)
+                    if proc.returncode:raise RuntimeError((proc.stderr or 'Unable to prune update history')[-350:])
+                    with SETUP_LOCK:
+                        latest=load();latest['update_history_months']=months;save(latest)
+                except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:
+                    self.json({'error':'Unable to update history retention: '+str(exc)},503);return
+                self.json({'ok':True,'months':months});return
+            if action=='restart-auto':
+                unit=data.get('unit');pw=data.get('admin_password')
+                if unit not in ('timer','service'):
+                    self.json({'error':'Unsupported update unit'},400);return
+                if not isinstance(pw,str) or not verify(pw,(admin_record(cfg,s['username']) or {}).get('password','')):
+                    self.json({'error':'Administrator password is incorrect'},403);return
+                health=service_health()
+                item=next((i for i in health['services'] if i['unit']=='pinas-auto-updates.'+unit),None)
+                if not item or item.get('restart_action')!=unit:
+                    self.json({'error':'This update service is not in a recoverable warning state'},409);return
+                try:
+                    proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index','restart-auto',unit],
+                                        capture_output=True,text=True,timeout=35,check=False)
+                    if proc.returncode:raise RuntimeError((proc.stderr or 'Could not restart update unit')[-400:])
+                except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:
+                    self.json({'error':str(exc)},503);return
+                self.json({'ok':True,'message':'PiNAS automatic update '+unit+' restart requested'});return
             if action=='reboot':
                 # Require the current administrator's password in addition to session CSRF.
                 confirmation=data.get('admin_password')
