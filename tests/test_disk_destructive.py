@@ -40,6 +40,8 @@ class DiskDestructiveTests(unittest.TestCase):
 
     def test_web_requires_explicit_yes_and_current_password(self):
         self.assertIn('id="disk-danger-yes" type="checkbox" required',PAGE)
+        self.assertIn('class="field disk-danger-consent"',PAGE)
+        self.assertIn('.modal-overlay .disk-danger-consent input[type="checkbox"]{width:18px;height:18px;min-width:18px;max-width:18px;padding:0;margin:0;flex:none;accent-color:var(--accent)}',PAGE)
         self.assertIn('id="disk-danger-password" type="password"',PAGE)
         self.assertIn('class="btn danger" id="disk-danger-confirm" type="submit" disabled',PAGE)
         self.assertIn("submit.disabled=!(check.checked&&password.value.length)",PAGE)
