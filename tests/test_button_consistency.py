@@ -29,7 +29,7 @@ class ButtonVisualConsistency(unittest.TestCase):
         self.assertIn('id="disk-danger-yes" type="checkbox" required',PAGE)
         self.assertIn('id="disk-danger-password" type="password"',PAGE)
         self.assertIn("submit.disabled=!(check.checked&&password.value.length)",PAGE)
-        self.assertIn("action,device:d.path,filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password",PAGE)
+        self.assertIn("action,device:d.path,expected_size:Number(d.size),filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password",PAGE)
         self.assertIn("overlay.querySelector('#disk-mount').onclick=",PAGE)
         self.assertIn("DISK_ACTION_ICONS[o.icon]",PAGE)
         self.assertIn('M14.62 3.74L9.4 8.98',PAGE)
