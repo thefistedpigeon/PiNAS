@@ -63,7 +63,8 @@ class SingleFileRegressions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / "pinas-ui.js"
             path.write_text(script.group(1), encoding="utf-8")
-            subprocess.run(["node", "--check", str(path)], check=True, capture_output=True, text=True)
+            result = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

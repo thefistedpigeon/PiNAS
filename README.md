@@ -15,6 +15,10 @@
 - Raspberry Pi model, hostname, throttling status, uptime, OS and kernel in System health.
 - NAS service health and reboot warnings, checked when Overview is opened or refreshed.
 
+### System Updates and recovery
+- Track manual and scheduled APT upgrade attempts in a separate, bounded SQLite history database (6 or 12 months retention).
+- Show automatic-update timer and one-shot service status on Updates and Overview. Failed units can be restarted after administrator re-authentication.
+
 ### Storage and RAID
 - Warn about missing, unmounted or mismatched PiNAS-managed UUID data mounts and degraded mdadm arrays, without automatic repairs.
 - Revalidate the selected filesystem against current hardware before a privileged storage adoption operation.
@@ -181,3 +185,7 @@ See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The
 - **v1.0.4 (development milestone):** [Reliability and recovery notes](docs/releases/v1.0.4.md).
 
 For installable builds, use the [PiNAS GitHub Releases](https://github.com/thefistedpigeon/PiNAS/releases) page rather than a development branch.
+
+## v1.0.7 development candidate
+
+The [v1.0.7 update history and service-health notes](docs/releases/v1.0.7.md) describe the unreleased candidate for Raspberry Pi testing. **v1.0.6 remains the latest official release** until this candidate is reviewed and published.
