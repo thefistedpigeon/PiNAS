@@ -295,11 +295,14 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Administrator access required'},403);return
             action=data.get('action');device=data.get('device')
             filesystem=data.get('filesystem');confirmation=data.get('confirm')
+            expected_size=data.get('expected_size')
             password=data.get('admin_password')
             if action not in ('wipe','format') or confirmation is not True:
                 self.json({'error':'Explicit Yes confirmation is required'},400);return
             if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_-]{1,64}',device):
                 self.json({'error':'Select a valid whole disk'},400);return
+            if type(expected_size) is not int or expected_size<128*1024*1024:
+                self.json({'error':'Disk size is missing or invalid'},400);return
             if (action=='format' and filesystem not in ('ext4','xfs','btrfs')) or (action=='wipe' and filesystem is not None):
                 self.json({'error':'Unsupported filesystem choice'},400);return
             if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
@@ -309,10 +312,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 fresh=hardware_discovery()
                 targets=[d for d in fresh.get('disks',[]) if d.get('path')==device and
-                         d.get('type')=='disk' and not d.get('read_only')]
+                         d.get('type')=='disk' and not d.get('read_only') and d.get('size')==expected_size]
                 if len(targets)!=1:
                     self.json({'error':'Selected data drive changed or is protected. Refresh Storage.'},409);return
-                payload=json.dumps({'device':device,'filesystem':filesystem,
+                payload=json.dumps({'device':device,'expected_size':expected_size,'filesystem':filesystem,
                                     'confirm':'WIPE' if action=='wipe' else 'FORMAT'})
                 proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-disk-erase',action],
                                     input=payload,capture_output=True,text=True,timeout=970,check=False)
