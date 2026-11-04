@@ -41,7 +41,7 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 .modal-overlay .modal-heading{flex-shrink:0}
 .modal-overlay .modal-actions{flex-wrap:wrap;row-gap:10px}
 .modal-overlay .modal-actions>.btn{white-space:normal}
-.modal-overlay .field input,.modal-overlay .field select{min-width:0}
+.modal-overlay .field input,.modal-overlay .field select{min-width:0}.disk-danger-consent span{display:flex;align-items:center;gap:10px}.modal-overlay .disk-danger-consent input[type="checkbox"]{width:18px;height:18px;min-width:18px;max-width:18px;padding:0;margin:0;flex:none;accent-color:var(--accent)}
 .modal-overlay [role="status"]{overflow-wrap:anywhere}
 @media(max-width:560px){.modal-overlay>.settings-modal{max-height:calc(100dvh - 16px);padding:16px}.modal-overlay .modal-actions>.btn{flex:1 1 auto}}
 </style></head><body><div id="app"></div><script>
@@ -267,7 +267,7 @@ function confirmDestructiveDisk(d,action){
    +'<p>'+esc(description)+'</p>'
    +'<p><strong>'+esc(d.model||d.name)+'</strong> · '+esc(d.path)+' · '+size(d.size)+'</p>'
    +formatChoice
-   +'<label class="field"><span><input id="disk-danger-yes" type="checkbox" required> Yes, I understand that the selected disk may lose all its data.</span></label>'
+   +'<label class="field disk-danger-consent"><span><input id="disk-danger-yes" type="checkbox" required> Yes, I understand that the selected disk may lose all its data.</span></label>'
    +'<label class="field">Administrator password<input id="disk-danger-password" type="password" maxlength="256" autocomplete="current-password" required></label>'
    +'<p class="small">Mounted disks, system disks, active RAID devices and disks referenced in fstab are protected.</p>'
    +'</div><div class="modal-actions"><button class="btn outline" id="disk-danger-cancel" type="button">Cancel</button>'
