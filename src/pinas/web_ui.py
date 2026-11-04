@@ -318,7 +318,7 @@ function openDiskWizard(index){
    const message=overlay.querySelector('#disk-message');
    message.textContent=action==='format'?'Formatting selected disk…':'Removing partition and filesystem signatures…';
    try{
-    const result=await post('/api/disk-destructive',{action,device:d.path,filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password});
+    const result=await post('/api/disk-destructive',{action,device:d.path,expected_size:Number(d.size),filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password});
     message.textContent=result.message||'Disk operation complete.';
     const response=await fetch('/api/state',{cache:'no-store'});
     const data=await response.json();
