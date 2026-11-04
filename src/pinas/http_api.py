@@ -996,12 +996,92 @@ if __name__=='__main__':
 """
 
 APT_INDEX_HELPER = r"""#!/usr/bin/env python3
-import os,subprocess,sys
+"""PiNAS restricted APT and schedule helper. Root-owned; never accepts shell input."""
+import grp,json,os,re,sqlite3,subprocess,sys,tempfile,time
 from pathlib import Path
+
 ALLOWED={'off':None,'daily':'*-*-* 01:00:00','weekly':'Fri *-*-* 01:00:00','monthly':'*-*-28 01:00:00'}
+DB_DIR=Path('/var/lib/pinas-update-history')
+DB=DB_DIR/'updates.sqlite3'
+CFG=Path('/var/lib/pinas/config.json')
+UNITS={'timer':'pinas-auto-updates.timer','service':'pinas-auto-updates.service'}
+
+def retention_months():
+    try:
+        value=json.loads(CFG.read_text()).get('update_history_months',6)
+        return value if type(value) is int and value in (6,12) else 6
+    except (OSError,ValueError,TypeError):
+        return 6
+
+def database():
+    if DB_DIR.is_symlink() or (DB.exists() and DB.is_symlink()):
+        raise ValueError('Update history storage cannot be a symlink')
+    group=grp.getgrnam('pinas').gr_gid
+    DB_DIR.mkdir(mode=0o750,exist_ok=True)
+    if not DB_DIR.is_dir():raise ValueError('Invalid update history location')
+    os.chown(DB_DIR,0,group);os.chmod(DB_DIR,0o750)
+    connection=sqlite3.connect(str(DB),timeout=5)
+    connection.execute('PRAGMA journal_mode=DELETE')
+    connection.execute('PRAGMA busy_timeout=5000')
+    connection.execute('PRAGMA auto_vacuum=INCREMENTAL')
+    connection.execute('''CREATE TABLE IF NOT EXISTS update_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at INTEGER NOT NULL,
+        completed_at INTEGER NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('manual','automatic')),
+        result TEXT NOT NULL CHECK(result IN ('success','failed')),
+        packages TEXT NOT NULL,
+        summary TEXT NOT NULL
+    )''')
+    os.chown(DB,0,group);os.chmod(DB,0o640)
+    return connection
+
+def prune(connection,months):
+    connection.execute("DELETE FROM update_events WHERE started_at < CAST(strftime('%s','now',?) AS INTEGER)",('-'+str(months)+' months',))
+    # Cap event count as a second bound in case scheduling is unusually frequent.
+    connection.execute('DELETE FROM update_events WHERE id NOT IN (SELECT id FROM update_events ORDER BY id DESC LIMIT 2000)')
+    connection.execute('PRAGMA incremental_vacuum(24)')
+
+def record(source,result,started,packages,summary):
+    try:
+        with database() as db:
+            db.execute('INSERT INTO update_events(started_at,completed_at,source,result,packages,summary) VALUES (?,?,?,?,?,?)',
+                       (started,int(time.time()),source,result,json.dumps(sorted(packages)[:120]),summary[-800:]))
+            prune(db,retention_months())
+    except (sqlite3.Error,OSError,ValueError,KeyError) as exc:
+        print('Warning: update history could not be saved: '+str(exc)[:150],file=sys.stderr)
+
 def run(cmd,timeout=30):
     p=subprocess.run(cmd,timeout=timeout,check=False)
     if p.returncode:sys.exit(p.returncode)
+
+def upgrade(source):
+    started=int(time.time())
+    packages=set()
+    outcome='failed'
+    code=1
+    details='APT did not complete'
+    try:
+        with tempfile.TemporaryFile(mode='w+t',encoding='utf-8') as output:
+            p=subprocess.run(['/usr/bin/apt-get','upgrade','-y','--no-remove',
+                              '-o','Dpkg::Options::=--force-confold'],
+                             stdout=output,stderr=subprocess.STDOUT,timeout=3300,check=False)
+            code=p.returncode
+            output.seek(0)
+            tail=''
+            for line in output:
+                tail=(tail+line)[-1500:]
+                match=re.match(r'^(?:Setting up|Unpacking) ([A-Za-z0-9.+:_-]+)',line)
+                if match and len(packages)<120:packages.add(match.group(1))
+            details=tail.strip()[-800:] or 'APT returned no output'
+            print(tail[-1500:])
+            outcome='success' if code==0 else 'failed'
+    except (OSError,subprocess.TimeoutExpired) as exc:
+        details='APT operation failed: '+str(exc)[:450]
+        print(details,file=sys.stderr)
+    record(source,outcome,started,packages,details)
+    if code:sys.exit(code)
+
 def main():
     if os.geteuid()!=0:sys.exit('Root access required')
     args=sys.argv[1:]
@@ -1015,10 +1095,29 @@ def main():
             run(['systemctl','enable','--now','pinas-auto-updates.timer'])
             run(['systemctl','restart','pinas-auto-updates.timer'])
         else:
-            run(['systemctl','disable','--now','pinas-auto-updates.timer']) if timer.exists() else None
+            if timer.exists():run(['systemctl','disable','--now','pinas-auto-updates.timer'])
             timer.unlink(missing_ok=True)
             run(['systemctl','daemon-reload'])
-        marker=Path('/var/lib/pinas/update-schedule');marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        marker=Path('/var/lib/pinas/update-schedule')
+        marker.write_text(schedule+'\n');os.chmod(marker,0o644)
+        return
+    if len(args)==2 and args[0]=='prune' and args[1] in ('6','12'):
+        with database() as db:prune(db,int(args[1]))
+        return
+    if len(args)==2 and args[0]=='restart-auto' and args[1] in UNITS:
+        try:schedule=Path('/var/lib/pinas/update-schedule').read_text().strip()
+        except OSError:schedule='off'
+        if schedule not in ('daily','weekly','monthly'):
+            sys.exit('Automatic updates are not enabled')
+        unit=UNITS[args[1]]
+        run(['systemctl','reset-failed',unit],15)
+        if args[1]=='timer':
+            run(['systemctl','enable','--now',unit],25)
+            run(['systemctl','restart',unit],25)
+        else:
+            # One-shot services normally become inactive after success.
+            # --no-block avoids holding the HTTP request during APT.
+            run(['systemctl','start','--no-block',unit],20)
         return
     if args==['firmware-check']:
         import shutil
@@ -1028,23 +1127,24 @@ def main():
         run([checker],40)
         return
     if args==['reboot']:
-        # This helper is independently constrained to reboot-required state; the
-        # HTTP route additionally requires an admin session, CSRF and password.
         if not Path('/run/reboot-required').is_file():
             sys.exit('No system reboot is required')
         if not Path('/usr/bin/systemd-run').is_file():
             sys.exit('systemd-run is unavailable')
-        # Delay gives the HTTP handler time to acknowledge before service shutdown.
         run(['/usr/bin/systemd-run','--quiet','--unit=pinas-update-reboot',
              '--on-active=10s','/usr/bin/systemctl','reboot'],15)
         return
     if args==['automatic']:
-        # Only the systemd oneshot invokes this command, not the web service account.
-        run(['/usr/bin/apt-get','update'],210)
-        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        started=int(time.time())
+        try:
+            run(['/usr/bin/apt-get','update'],210)
+        except (SystemExit,OSError,subprocess.TimeoutExpired) as exc:
+            record('automatic','failed',started,[], 'APT index refresh failed: '+str(exc))
+            raise
+        upgrade('automatic')
         return
     if args==['upgrade']:
-        run(['/usr/bin/apt-get','upgrade','-y','--no-remove','-o','Dpkg::Options::=--force-confold'],3300)
+        upgrade('manual')
     elif args==['refresh']:
         run(['/usr/bin/apt-get','update'],210)
     else:sys.exit('Unsupported operation')
