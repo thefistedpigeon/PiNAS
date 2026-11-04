@@ -1028,7 +1028,7 @@ if __name__=='__main__':
 """
 
 APT_INDEX_HELPER = r"""#!/usr/bin/env python3
-"""PiNAS restricted APT and schedule helper. Root-owned; never accepts shell input."""
+# Restricted APT and schedule helper, root-owned, no shell input.
 import grp,json,os,re,sqlite3,subprocess,sys,tempfile,time
 from pathlib import Path
 
