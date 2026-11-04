@@ -13,6 +13,9 @@ def expand_modules(target):
     # Browser-based upgrades invoke --extract-modules as root. Synchronise the
     # narrowly scoped APT helper and sudo rule too, otherwise scheduled updates
     # would continue to use the older, non-logging helper after a GUI upgrade.
+    # Keep destructive operations isolated from the non-destructive adoption helper.
+    # Existing browser-driven upgrades update the root helper and its sudoers rule.
+    install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"])
     if Path('/usr/local/libexec/pinas-apt-index').is_file():
         install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,
           ["refresh","upgrade","firmware-check","schedule off","schedule daily",
@@ -95,6 +98,7 @@ def install(args):
     files_helper=install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
     updater_helper=install_privileged_helper('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"])
     storage_helper=install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
+    erase_helper=install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"])
     smart_helper=install_privileged_helper('pinas-smart-health',SMART_HEALTH_HELPER,[""])
     apt_helper=install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily","schedule weekly","schedule monthly","reboot","prune 6","prune 12","restart-auto timer","restart-auto service"])
     auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
