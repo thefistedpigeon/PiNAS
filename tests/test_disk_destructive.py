@@ -47,6 +47,7 @@ class DiskDestructiveTests(unittest.TestCase):
         self.assertIn("await post('/api/disk-destructive'",PAGE)
         self.assertIn("action,device:d.path,expected_size:Number(d.size),filesystem:approved.filesystem,confirm:true,admin_password:approved.admin_password",PAGE)
         self.assertIn("['wipe','format']",PAGE)
+        self.assertIn("o.id==='disk-mount'?'':'danger'",PAGE)
 
     def test_http_revalidates_and_does_not_trust_browser(self):
         self.assertIn("if path=='/api/disk-destructive':",HTTP)
@@ -114,6 +115,7 @@ class DiskDestructiveTests(unittest.TestCase):
         self.assertIn("'ext4':('mkfs.ext4','-F')",HELPER)
         self.assertIn("'xfs':('mkfs.xfs','-f')",HELPER)
         self.assertIn("'btrfs':('mkfs.btrfs','-f')",HELPER)
+        self.assertIn("if detected!=filesystem:raise ValueError('Formatted filesystem verification failed')",HELPER)
         self.assertIn("if action=='format' and filesystem not in FILESYSTEMS",HELPER)
 
     def test_upgrade_installs_restricted_root_helper(self):
