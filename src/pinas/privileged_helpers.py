@@ -17,7 +17,7 @@ def run(*args,timeout=20):
     return proc.stdout.strip()
 
 def node_tree():
-    data=json.loads(run('lsblk','-J','-b','-o','NAME,PATH,TYPE,FSTYPE,UUID,PARTUUID,MOUNTPOINTS,RO,PKNAME,SIZE'))
+    data=json.loads(run('lsblk','-J','-b','-o','NAME,PATH,TYPE,FSTYPE,UUID,PARTUUID,LABEL,PARTLABEL,MOUNTPOINTS,RO,PKNAME,SIZE'))
     roots=data.get('blockdevices')
     if not isinstance(roots,list) or not roots:raise ValueError('Unable to inspect disk topology')
     return roots
@@ -34,6 +34,8 @@ def in_fstab(nodes):
     paths={str(Path(n['path']).resolve()) for n in nodes if n.get('path')}
     uuids={str(n.get('uuid')) for n in nodes if n.get('uuid')}
     parts={str(n.get('partuuid')) for n in nodes if n.get('partuuid')}
+    labels={str(n.get('label')) for n in nodes if n.get('label')}
+    partlabels={str(n.get('partlabel')) for n in nodes if n.get('partlabel')}
     for line in text.splitlines():
         line=line.strip()
         if not line or line.startswith('#'):continue
@@ -42,6 +44,8 @@ def in_fstab(nodes):
         source=cols[0]
         if (source.startswith('UUID=') and source[5:] in uuids or
             source.startswith('PARTUUID=') and source[9:] in parts or
+            source.startswith('LABEL=') and source[6:] in labels or
+            source.startswith('PARTLABEL=') and source[10:] in partlabels or
             source.startswith('/dev/') and str(Path(source).resolve()) in paths):
             raise ValueError('A partition is configured in fstab; remove its mount configuration first')
 
@@ -129,12 +133,16 @@ def main():
         raise ValueError('Unsupported target filesystem')
     if action=='wipe' and filesystem is not None:
         raise ValueError('Wipe does not take a filesystem')
+    if not shutil.which('wipefs') or not shutil.which('blockdev'):
+        raise ValueError('Disk maintenance tools are missing')
+    if action=='format' and not shutil.which({'ext4':'mkfs.ext4','xfs':'mkfs.xfs','btrfs':'mkfs.btrfs'}[filesystem]):
+        raise ValueError('Selected filesystem formatter is not installed')
     with open('/run/lock/pinas-storage-destructive.lock','w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         roots=node_tree()
         disk,items=checked_disk(device,roots)
         # Check again immediately before executing destructive commands.
-        checked_disk(device,node_tree())
+        disk,items=checked_disk(device,node_tree())
         erase_signatures(items)
         if action=='format':
             # A single filesystem directly on the whole disk is supported by
