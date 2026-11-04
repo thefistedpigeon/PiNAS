@@ -157,7 +157,8 @@ def main():
             program,*flags=commands[filesystem]
             if not shutil.which(program):raise ValueError(program+' is not installed')
             run(program,*flags,device,timeout=900)
-            run('blkid','-p',device,timeout=15)
+            detected=run('blkid','-p','-s','TYPE','-o','value',device,timeout=15)
+            if detected!=filesystem:raise ValueError('Formatted filesystem verification failed')
         print(json.dumps({'ok':True,'action':action,'device':device,
                           'filesystem':filesystem,'message':
                           'Disk formatted; mount it separately' if action=='format'
