@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Release status:** PiNAS v1.0.6 is the current official release, incorporating the tested v1.0.4 reliability/recovery and v1.0.5 storage-safety milestones. Keep independent backups of important files, particularly before changing storage or RAID configurations.
+> **Release status:** PiNAS v1.0.8 is the current official release, incorporating the v1.0.7 update-history, service-health and UI refinements plus guarded disk wipe/format actions. Keep independent backups of important files; destructive operations are irreversible and must only be used after checking the selected drive.
 
 ## Features
 
@@ -20,7 +20,7 @@
 - Show automatic-update timer and one-shot service status on Updates and Overview. Failed units can be restarted after administrator re-authentication.
 
 ### Storage and RAID
-- **v1.0.8 test candidate:** Wipe Disk and Format Disk require an explicit Yes checkbox, administrator password, and independent protected-disk validation. Wipe removes signatures, not securely erased data. Format creates an ext4/XFS/Btrfs filesystem directly on the whole drive. Do not use on active NAS storage.
+- **v1.0.8:** Wipe Disk and Format Disk require an explicit Yes checkbox, administrator password, and independent protected-disk validation. Wipe removes signatures, not securely erased data. Format creates an ext4/XFS/Btrfs filesystem directly on the whole drive. Do not use on active NAS storage.
 - Warn about missing, unmounted or mismatched PiNAS-managed UUID data mounts and degraded mdadm arrays, without automatic repairs.
 - Revalidate the selected filesystem against current hardware before a privileged storage adoption operation.
 - Discover attached drives and supported **ext4, XFS and Btrfs** filesystems, including additional Btrfs detection where required.
@@ -181,16 +181,18 @@ See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The
 
 ## Recent releases
 
+- **v1.0.8 (current):** [Official release notes](docs/releases/v1.0.8.md) — update history and service health, final button consistency, and guarded Wipe Disk / Format Disk.
+
 - **v1.0.6:** [Official release notes](docs/releases/v1.0.6.md) — storage safety and recovery, Overview disk health/temperature, standardised buttons and improved automatic browser reload after an application update.
 - **v1.0.5 (development milestone):** [Storage safety and testing notes](docs/releases/v1.0.5.md).
 - **v1.0.4 (development milestone):** [Reliability and recovery notes](docs/releases/v1.0.4.md).
 
 For installable builds, use the [PiNAS GitHub Releases](https://github.com/thefistedpigeon/PiNAS/releases) page rather than a development branch.
 
-## v1.0.7 development candidate
+## v1.0.7 development milestone
 
-The [v1.0.7 update history and service-health notes](docs/releases/v1.0.7.md) describe the unreleased candidate for Raspberry Pi testing. **v1.0.6 remains the latest official release** until this candidate is reviewed and published.
+The [v1.0.7 update history and service-health notes](docs/releases/v1.0.7.md) describe the improvements included in the official v1.0.8 release.
 
-## v1.0.8 development candidate
+## v1.0.8 official release
 
-See the [v1.0.8 Wipe Disk and Format Disk safety notes](docs/releases/v1.0.8.md). This candidate is not a published release and must be tested on disposable disks before merging. The latest official release remains v1.0.6.
+See the [v1.0.8 Wipe Disk and Format Disk notes](docs/releases/v1.0.8.md) for supported actions, safety limitations, and disposable-disk testing guidance.
