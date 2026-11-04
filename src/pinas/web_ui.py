@@ -169,6 +169,20 @@ async function loadUpdates(){
  try{const r=await fetch('/api/updates',{cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not read updates');
  const status=j.status||{};const rebootPanel=document.getElementById('update-reboot-panel');if(rebootPanel)rebootPanel.hidden=!j.reboot_required||!!status.running;const radios=[...document.querySelectorAll('input[name="updates-schedule"]')];if(radios.length&&!radios.some(r=>r===document.activeElement)){const selected=j.schedule||'off';radios.forEach(r=>{r.checked=r.value===selected});radios.find(r=>r.checked)?.dispatchEvent(new Event('change'))}const output=document.getElementById('updates-output');if(output)output.textContent=status.output||'';const fw=document.getElementById('firmware-update-status');if(fw){const f=j.firmware||{};fw.textContent=f.state==='available'?'Raspberry Pi EEPROM firmware update available':f.state==='current'?'Raspberry Pi EEPROM firmware is current':f.state==='unsupported'?'EEPROM firmware checks not applicable on this hardware':f.state==='missing'?'EEPROM checker is not installed':f.state==='error'?'Firmware check failed: '+(f.message||'Unknown error'):'Firmware status will be checked with package updates'}const install=document.getElementById('install-os-updates');if(install)install.disabled=!!status.running||!j.packages?.length;const check=document.getElementById('check-os-updates');if(check)check.disabled=!!status.running;const spinner=document.getElementById('updates-spinner');if(spinner)spinner.hidden=!status.running;message.textContent=status.running?(status.operation==='upgrade'?'Installing available updates…':'Refreshing package indexes…'):j.error?'APT: '+j.error:status.error?'Last check failed: '+status.error:`${j.packages.length} available package update${j.packages.length===1?'':'s'}${j.reboot_required?' · Reboot required':''}`;
  list.innerHTML=(j.packages||[]).length?`<div class="table-scroll"><table class="updates-package-table"><thead><tr><th>Package</th><th>Installed</th><th>Available</th></tr></thead><tbody>${j.packages.map(p=>`<tr><td>${esc(p.name)}<div class="small">${esc(p.repository)} · ${esc(p.architecture)}</div></td><td>${esc(p.installed)}</td><td>${esc(p.candidate)}</td></tr>`).join('')}</tbody></table></div>`:!j.error?'<p class="small">No upgradable packages are currently listed in the local APT indexes.</p>':'';
+ const historyRetention=document.getElementById('update-history-months');
+ if(historyRetention&&document.activeElement!==historyRetention)historyRetention.value=String(j.history_months===12?12:6);
+ const historyList=document.getElementById('update-history-list');
+ if(historyList){
+  const records=j.history||[];
+  historyList.innerHTML=records.length?records.map(item=>{
+   const packages=Array.isArray(item.packages)?item.packages:[];
+   const date=new Date(Number(item.started_at)*1000);
+   const stamp=Number.isFinite(date.getTime())?date.toLocaleString():'Unknown time';
+   const source=item.source==='automatic'?'Automatic':'Manual';
+   const result=item.result==='success'?'Installed':'Failed';
+   return `<div class="update-history-row"><div class="line"><div><strong>${esc(stamp)}</strong><span class="small">${source} · ${packages.length} package${packages.length===1?'':'s'} recorded</span></div><span class="pill ${item.result==='success'?'good':''}">${result}</span></div><p class="small">${packages.length?esc(packages.join(', ')):'No package changes recorded'}</p><details><summary>APT summary</summary><pre class="small">${esc(item.summary||'No summary available')}</pre></details></div>`;
+  }).join(''):'<p class="small">No update installations recorded yet. Future manual and scheduled APT upgrades will appear here.</p>';
+ }
  if(status.running&&page==='Updates')setTimeout(()=>{if(page==='Updates')loadUpdates()},3000);
  }catch(e){message.textContent=e.message}
 }
