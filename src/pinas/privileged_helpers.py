@@ -49,7 +49,7 @@ def in_fstab(nodes):
             source.startswith('/dev/') and str(Path(source).resolve()) in paths):
             raise ValueError('A partition is configured in fstab; remove its mount configuration first')
 
-def checked_disk(device,roots):
+def checked_disk(device,roots,expected_size):
     if not isinstance(device,str) or not re.fullmatch(r'/dev/[A-Za-z0-9_-]{1,64}',device):
         raise ValueError('Invalid physical disk device')
     path=Path(device)
@@ -64,6 +64,8 @@ def checked_disk(device,roots):
         if len(selected)!=1 or selected[0].get('type')!='disk':
             raise ValueError('Select a whole physical data disk')
         disk=selected[0]
+        if type(expected_size) is not int or expected_size!=int(disk.get('size') or 0):
+            raise ValueError('Selected disk size changed; refresh Storage and try again')
         if (disk.get('ro') or str(disk.get('name','')).startswith(BLOCKED_PREFIX)
             or int(disk.get('size') or 0)<MINIMUM_SIZE):
             raise ValueError('This disk is read-only, a virtual device or too small')
@@ -123,10 +125,11 @@ def main():
         raise ValueError('Unsupported destructive operation')
     action=sys.argv[1]
     data=json.loads(sys.stdin.read(2048))
-    if not isinstance(data,dict) or set(data)!={'device','filesystem','confirm'}:
+    if not isinstance(data,dict) or set(data)!={'device','filesystem','confirm','expected_size'}:
         raise ValueError('Invalid operation request')
     device=data['device']
     filesystem=data['filesystem']
+    expected_size=data['expected_size']
     if data['confirm']!=('WIPE' if action=='wipe' else 'FORMAT'):
         raise ValueError('Explicit confirmation required')
     if action=='format' and filesystem not in FILESYSTEMS:
@@ -140,9 +143,9 @@ def main():
     with open('/run/lock/pinas-storage-destructive.lock','w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         roots=node_tree()
-        disk,items=checked_disk(device,roots)
+        disk,items=checked_disk(device,roots,expected_size)
         # Check again immediately before executing destructive commands.
-        disk,items=checked_disk(device,node_tree())
+        disk,items=checked_disk(device,node_tree(),expected_size)
         erase_signatures(items)
         if action=='format':
             # A single filesystem directly on the whole disk is supported by
