@@ -15,6 +15,9 @@ def expand_modules(target):
     # would continue to use the older, non-logging helper after a GUI upgrade.
     # Keep destructive operations isolated from the non-destructive adoption helper.
     # Existing browser-driven upgrades update the root helper and its sudoers rule.
+    # The browser updater must also refresh the storage-adoption helper;
+    # otherwise existing installations retain older mount logic.
+    install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
     install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"])
     if Path('/usr/local/libexec/pinas-apt-index').is_file():
         install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,
