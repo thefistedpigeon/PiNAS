@@ -106,6 +106,8 @@ def install(args):
     Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
     path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
     Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    tls_timer='''[Unit]\nDescription=Check PiNAS hostname and managed TLS certificate monthly\n[Timer]\nOnCalendar=monthly\nPersistent=true\nUnit=pinas-hostname.service\n[Install]\nWantedBy=timers.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.timer').write_text(tls_timer)
     user_helper=install_privileged_helper('pinas-nas-user',NAS_USER_HELPER,["create *","password *","list"])
     reset_helper=install_privileged_helper('pinas-smb-reset',SMB_RESET_HELPER,["reset"])
     if first_install and Path('/etc/samba/smb.conf').is_file():
@@ -122,15 +124,21 @@ def install(args):
     auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
     os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
     # Existing schedule is preserved when upgrading PiNAS.
-    # Generate a persistent per-install certificate; never replace it on upgrades.
+    # Only PiNAS-issued certificates are marked for hostname-aware rotation.
+    generated_tls=False
     if not TLS_CERT.exists() or not TLS_KEY.exists():
         if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
         if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
         hostname=load().get('hostname','pinas')
         if not valid_hostname(hostname):hostname='pinas'
-        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','365',
             '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
             '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+        generated_tls=True
+    if generated_tls:
+        marker=DATA/'tls-managed'
+        marker.write_text('pinas-self-signed-v1\n')
+        os.chmod(marker,0o600)
     for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
         os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
         os.chmod(f,mode)
@@ -139,7 +147,7 @@ def install(args):
     # mount namespace must permit those helpers to reach system configuration.
     service='''[Unit]\nDescription=PiNAS web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
     Path('/etc/systemd/system/pinas.service').write_text(service)
-    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.timer'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
     print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
     if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
     else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
