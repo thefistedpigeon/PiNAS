@@ -48,16 +48,17 @@ class StorageBreakdownTests(unittest.TestCase):
             with self.assertRaises(ValueError):ns['scan_media_volume'](link)
 
     def test_ui_is_nonblocking_and_on_demand(self):
-        self.assertIn("mediaBreakdownCache",UI)
-        self.assertIn("loadMediaBreakdown()",UI)
-        self.assertIn("Rescan media types",UI)
+        self.assertIn("storageScanPanels(d)",UI)
+        self.assertIn("Scan file types",UI)
         self.assertIn("MEDIA_STORAGE_TYPES",UI)
         self.assertIn("if path=='/api/media-breakdown':",API)
-        self.assertIn("media_breakdown_status(refresh=True)",API)
+        self.assertIn("media_breakdown_status(data.get('mount'),refresh=True)",API)
         self.assertIn("_STORAGE_INTERVAL=1800",SOURCE)
-        self.assertIn("st.st_blocks",SOURCE)
-        self.assertIn("if st.st_dev!=rootstat.st_dev:continue",SOURCE)
-        self.assertIn("if not volume.get('persistent') or volume.get('read_only')",SOURCE)
+        self.assertIn("info.st_blocks",SOURCE)
+        self.assertIn("if info.st_dev!=stat.st_dev:continue",SOURCE)
+        self.assertIn("if volume.get('persistent')",SOURCE)
+        self.assertIn("FILE_TYPE_SCAN_HELPER = r",SOURCE)
+        self.assertNotIn("Rescan media types",UI)
 
     def test_existing_share_permissions_are_inherited(self):
         share=API.split('NAS_SHARE_HELPER = r',1)[1].split('NAS_FILES_HELPER = r',1)[0]

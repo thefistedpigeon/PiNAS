@@ -74,11 +74,13 @@ class OverviewDiskHealthTests(unittest.TestCase):
         self.assertIn("if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return",api)
         self.assertIn("self.send_header('Cache-Control','no-store')",api)
 
-    def test_smart_checked_only_on_overview_and_button(self):
+    def test_smart_checked_on_demand_from_overview_and_storage(self):
         self.assertEqual(PAGE.count("fetch('/api/smart-health'"),1)
         self.assertIn("if(page==='Overview'){document.getElementById('refresh-service-health')",PAGE)
         self.assertIn("addEventListener('click',checkSmartHealth)",PAGE)
-        self.assertIn("displayDiskHealth();checkSmartHealth()",PAGE)
+        self.assertIn("refreshServiceHealth();displayDiskHealth();",PAGE)
+        self.assertNotIn("displayDiskHealth();checkSmartHealth()",PAGE)
+        self.assertIn("id=\"refresh-disk-health-storage\"",PAGE)
         self.assertIn('const entries=new Map(',PAGE)
         self.assertIn('entries.get(panel.dataset.smartDevice)',PAGE)
         self.assertIn("!result.installed?",PAGE)

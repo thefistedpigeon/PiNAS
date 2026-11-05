@@ -21,6 +21,8 @@ def expand_modules(target):
         ('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"]),
         ('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"]),
         ('pinas-smart-health',SMART_HEALTH_HELPER,[""]),
+        ('pinas-file-types',FILE_TYPE_SCAN_HELPER,["scan *"]),
+        ('pinas-power',POWER_HELPER,["reboot","shutdown"]),
         ('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"]),
         ('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily",
              "schedule weekly","schedule monthly","reboot","prune 6","prune 12",
@@ -136,6 +138,8 @@ def install(args):
     storage_helper=install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
     erase_helper=install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"])
     smart_helper=install_privileged_helper('pinas-smart-health',SMART_HEALTH_HELPER,[""])
+    install_privileged_helper('pinas-file-types',FILE_TYPE_SCAN_HELPER,["scan *"])
+    install_privileged_helper('pinas-power',POWER_HELPER,["reboot","shutdown"])
     apt_helper=install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily","schedule weekly","schedule monthly","reboot","prune 6","prune 12","restart-auto timer","restart-auto service"])
     auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
     auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
