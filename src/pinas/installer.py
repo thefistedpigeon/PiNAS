@@ -17,6 +17,8 @@ def expand_modules(target):
     # Existing browser-driven upgrades update the root helper and its sudoers rule.
     # The browser updater must also refresh the storage-adoption helper;
     # otherwise existing installations retain older mount logic.
+    install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate"])
+    install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
     install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
     install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"])
     if Path('/usr/local/libexec/pinas-apt-index').is_file():
@@ -97,7 +99,7 @@ def install(args):
     reset_helper=install_privileged_helper('pinas-smb-reset',SMB_RESET_HELPER,["reset"])
     if first_install and Path('/etc/samba/smb.conf').is_file():
         subprocess.run(['/usr/bin/python3',str(reset_helper),'reset'],check=True,timeout=45)
-    share_helper=install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit"])
+    share_helper=install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate"])
     files_helper=install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
     updater_helper=install_privileged_helper('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"])
     storage_helper=install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])

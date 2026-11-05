@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -244,6 +244,9 @@ class Handler(BaseHTTPRequestHandler):
             self.json({'ok':True});return
         if path=='/api/nas-users':
             username=data.get('username');password=data.get('password');display_name=data.get('display_name')
+            create_home=data.get('create_home_share',False);home_volume=data.get('home_volume');admin_password=data.get('admin_password')
+            if type(create_home) is not bool:
+                self.json({'error':'Invalid private home share option.'},400);return
             if not isinstance(username,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',username) or username in ('pinas','root','admin','nobody'):
                 self.json({'error':'Use a unique lowercase username (3–32 characters).'},400);return
             if not isinstance(password,str) or not 12<=len(password)<=256:
@@ -256,6 +259,22 @@ class Handler(BaseHTTPRequestHandler):
             if admin_record(cfg,username):
                 self.json({'error':'Username reserved for the PiNAS administrator.'},409);return
             if any(u['name']==username for u in nas_user_list()):self.json({'error':'Samba user already exists.'},409);return
+            if create_home:
+                if username.casefold() in ('global','homes','printers','print$','ipc$'):
+                    self.json({'error':'Username conflicts with a reserved Samba share name.'},400);return
+                if not re.fullmatch(r'[a-z][a-z0-9_-]{2,31}',username):
+                    self.json({'error':'Private home share names must start with a letter.'},400);return
+                if not isinstance(home_volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',home_volume) or '..' in home_volume:
+                    self.json({'error':'Select a valid persistent disk for the private home share.'},400);return
+                if not isinstance(admin_password,str) or not verify(admin_password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                    time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+                if any(username.casefold()==item.get('name','').casefold() for item in nas_share_list()):
+                    self.json({'error':'A share with this username already exists.'},409);return
+                available=[v for d in hardware_discovery().get('disks',[]) for v in d.get('volumes',[])
+                           if v.get('path')==home_volume and v.get('persistent') and v.get('mounts')
+                           and v.get('fs') in ('ext4','xfs','btrfs') and not v.get('read_only')]
+                if len(available)!=1:
+                    self.json({'error':'Selected home share disk is not mounted and persistent.'},409);return
             try:provision_nas_user(username,password)
             except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:
                 self.json({'error':str(exc)},503);return
@@ -265,7 +284,17 @@ class Handler(BaseHTTPRequestHandler):
                 names[username]=display_name;latest['nas_display_names']=names;save(latest)
             global DISCOVERY_AT
             DISCOVERY_AT=0
-            self.json({'ok':True,'username':username,'display_name':display_name});return
+            if create_home:
+                try:
+                    # Share creation runs in the root-owned broker and applies
+                    # Samba valid users + root-owned POSIX ACLs for this user.
+                    create_nas_share(username,home_volume,{username:'rw'})
+                except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:
+                    self.json({'error':'NAS user was created, but the private home share failed: '+str(exc),
+                               'created_user':True,'username':username},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'username':username,'display_name':display_name,
+                       'created_home_share':create_home});return
         if path=='/api/storage':
             if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             device=data.get('device');password=data.get('admin_password')
@@ -346,6 +375,20 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json({'ok':True,'share':new_name});return
+        if path=='/api/migrate-share':
+            if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if data.get('confirm')!='MOVE SHARE':
+                self.json({'error':'Explicit migration confirmation required.'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            try:result=migrate_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:
+                self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json(result);return
         if path=='/api/delete-share':
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
@@ -672,9 +715,73 @@ def main():
             if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:continue
             try:
                 mount=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
-                if len(mount)==1:item['folder']=str(pathlib.Path(mount[0])/'PiNAS Shares'/item.get('name',''))
+                if len(mount)==1:
+                    base=pathlib.Path(mount[0]);name=item.get('name','')
+                    # Historical records without an explicit folder remain on their
+                    # original path; never implicitly move existing data.
+                    legacy=base/'PiNAS Shares'/name
+                    modern=base/'pinas-shares'/name
+                    item['folder']=str(legacy if legacy.is_dir() else modern)
             except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired):pass
         print(json.dumps(items));return
+    if len(sys.argv)==2 and sys.argv[1]=='migrate':
+        # Explicit, non-destructive legacy-directory migration. No source
+        # directory is removed or overwritten; os.rename is same-filesystem.
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+            raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        item=matches[0];mount=check_volume(item.get('volume'))
+        legacy_root=mount/'PiNAS Shares'
+        legacy=legacy_root/name
+        target_root=mount/'pinas-shares'
+        target=target_root/name
+        if pathlib.Path(item.get('folder') or str(legacy))!=legacy:
+            raise ValueError('Share is not using the legacy directory')
+        if legacy_root.is_symlink() or legacy.is_symlink() or not legacy.is_dir() or legacy.stat().st_uid!=0:
+            raise ValueError('Unsafe legacy share directory')
+        if legacy.stat().st_dev!=mount.stat().st_dev:
+            raise ValueError('Legacy share is on another filesystem')
+        # Refuse moving a tree with nested mountpoints or bind mounts.
+        mounted=run(['/usr/bin/findmnt','-rn','-o','TARGET']).stdout.splitlines()
+        if any(point==str(legacy) or point.startswith(str(legacy)+'/') for point in mounted):
+            raise ValueError('Share contains an active mountpoint; unmount it first')
+        if target_root.is_symlink() or target.exists() or target.is_symlink():
+            raise ValueError('Destination already exists or is unsafe')
+        # No existing folder is adopted or overwritten.
+        target_root.mkdir(mode=0o711,exist_ok=True)
+        if target_root.stat().st_uid!=0 or (target_root.stat().st_mode & 0o022):
+            raise ValueError('Unsafe new shares directory')
+        oldconf=CONF.read_text();olddb=DB.read_text()
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
+        sections=list(section.finditer(oldconf))
+        if len(sections)!=1:raise ValueError('Managed Samba section missing or ambiguous')
+        previous=sections[0].group(0)
+        old_path='   path = '+str(legacy)+'\n'
+        if previous.count(old_path)!=1:raise ValueError('Samba path differs from recorded legacy folder')
+        newconf=oldconf[:sections[0].start()]+previous.replace(old_path,'   path = '+str(target)+'\n')+oldconf[sections[0].end():]
+        moved=False
+        try:
+            legacy.rename(target);moved=True
+            item['folder']=str(target)
+            atomic(CONF,newconf,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps(current,indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            if moved:
+                try:target.rename(legacy)
+                except OSError:raise ValueError('Migration failed and manual folder recovery is required: '+str(target))
+            raise
+        print(json.dumps({'ok':True,'name':name,'folder':str(target)}));return
     if len(sys.argv)==2 and sys.argv[1]=='edit':
         raw=sys.stdin.read(8193)
         if len(raw)>8192:raise ValueError('Request too large')
@@ -695,7 +802,7 @@ def main():
         item=matches[0]
         mount=check_volume(item.get('volume'))
         folder=pathlib.Path(item.get('folder') or str(mount/'PiNAS Shares'/name))
-        if folder.parent!=mount/'PiNAS Shares' or folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:raise ValueError('Unsafe managed share folder')
+        if folder.parent not in (mount/'PiNAS Shares',mount/'pinas-shares') or folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:raise ValueError('Unsafe managed share folder')
         oldconf=CONF.read_text()
         old_smb=SMB.read_text()
         new_smb=guest_mapping(old_smb) if public else old_smb
@@ -787,7 +894,7 @@ def main():
     existing=run(['/usr/bin/testparm','-s']).stdout
     if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
     # No preexisting folder is ever adopted or modified by this operation.
-    root=mount/'PiNAS Shares'
+    root=mount/'pinas-shares'
     if root.is_symlink():raise ValueError('Unsafe share root')
     root.mkdir(mode=0o711,exist_ok=True)
     if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
@@ -915,8 +1022,10 @@ def main():
     if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
     mount=pathlib.Path(targets[0]).resolve(strict=True)
     if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
-    root=mount/'PiNAS Shares'/s['name']
-    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    root=pathlib.Path(s.get('folder') or str(mount/'PiNAS Shares'/s['name']))
+    if root.parent not in (mount/'PiNAS Shares',mount/'pinas-shares') or root.name!=s['name'] or root.is_symlink() or not root.is_dir():
+        raise ValueError('Share folder unavailable')
+    if root.parent.is_symlink():raise ValueError('Unsafe share root')
     relative=q.get('path','');target=safe_path(root,relative)
     writable=s['access'][user]=='rw'
     if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
