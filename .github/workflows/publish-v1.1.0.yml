@@ -1,0 +1,70 @@
+name: Publish PiNAS v1.1.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-v1.1.0.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pinas-release-v1.1.0
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'thefistedpigeon/PiNAS'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Confirm release branch, version and notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF}" = "refs/heads/main"
+          grep -Fx "VERSION='1.1.0'" <(grep '^VERSION=' pinas.py)
+          grep -Fx "VERSION='1.1.0'" <(grep '^VERSION=' src/pinas/core.py)
+          test -s docs/releases/v1.1.0.md
+      - name: Verify standalone installer equals all source sections
+        run: python3 tools/build_release.py --check
+      - name: Compile Python files
+        run: python3 -m compileall -q src/pinas pinas.py tools tests
+      - name: Run complete regression suite
+        run: python3 -m unittest discover -s tests -v
+      - name: Install targeted lint checker
+        run: python3 -m pip install --disable-pip-version-check ruff==0.14.4
+      - name: Check critical code correctness
+        run: ruff check --select E9,F63,F7,F82 --ignore F821 src/pinas tools
+      - name: Create release checksum
+        run: sha256sum pinas.py > pinas.py.sha256
+      - name: Publish official GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.1.0 >/dev/null 2>&1; then
+            echo "v1.1.0 already exists; refusing to overwrite a published release."
+            exit 1
+          fi
+          gh release create v1.1.0 pinas.py pinas.py.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "PiNAS v1.1.0 — Media Server" \
+            --notes-file docs/releases/v1.1.0.md \
+            --latest
+      - name: Verify release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view v1.1.0 --json assets --jq '.assets[].name' | grep -Fx pinas.py
+          gh release view v1.1.0 --json assets --jq '.assets[].name' | grep -Fx pinas.py.sha256
