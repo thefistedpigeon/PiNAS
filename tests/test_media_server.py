@@ -64,6 +64,14 @@ class MediaServerTests(unittest.TestCase):
         self.assertIn("id=\"ms-library-volume\"",UI)
         self.assertIn("mediaAction('setup-library',true,{volume:target})",UI)
 
+    def test_media_configuration_docs_and_valid_choices(self):
+        for name in ('MEDIA_DOC','MEDIA_SELECTS','MEDIA_NUMERIC','root_container','tivo_discovery'):
+            self.assertIn(name,UI)
+        for literal in ('895','8200','bonjour','64','1024'):
+            self.assertIn(literal,UI)
+        self.assertIn("el.value.trim()===''?null:Number(el.value)",UI)
+        self.assertIn("if(settings[key]===null)delete settings[key]",UI)
+
     def test_syntax_and_optional_install(self):
         compile(MEDIA,'media_server.py','exec')
         compile(HELPER,'pinas-media-server','exec')
@@ -92,7 +100,7 @@ class MediaServerTests(unittest.TestCase):
         self.assertIn("u:minidlna:rX",HELPER)
         self.assertIn("d:u:minidlna:rX",HELPER)
         self.assertIn("data-media-grant",UI)
-        self.assertIn("if action in ('install','save','grant','rebuild'):",API)
+        self.assertIn("if action in ('install','save','grant','rebuild','setup-library'):",API)
     def test_rebuild_is_admin_confirmed_and_limited_to_database(self):
         self.assertIn("'rebuild'",HELPER)
         self.assertIn("files.db",HELPER)
