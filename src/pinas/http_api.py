@@ -1224,14 +1224,22 @@ def main():
         print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
     if action=='list':
         if not target.is_dir():raise ValueError('Not a folder')
-        entries=[]
-        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+        offset=q.get('offset',0)
+        if type(offset) is not int or offset<0 or offset>1000000:raise ValueError('Invalid folder page')
+        # Paginate at the helper boundary; the browser does not load all 10k
+        # photo thumbnails/entries in one JSON response.
+        visible=[]
+        for child in target.iterdir():
             if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
-            try:st=child.stat()
+            try:st=child.stat(follow_symlinks=False)
             except OSError:continue
-            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
-            if len(entries)>=1000:break
-        print(json.dumps({'entries':entries}));return
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):
+                visible.append((child.name,stat.S_ISDIR(st.st_mode),st.st_size))
+        visible.sort(key=lambda x:x[0].casefold())
+        selected=visible[offset:offset+200]
+        entries=[{'name':name,'dir':is_dir,'size':size} for name,is_dir,size in selected]
+        next_offset=offset+len(entries) if offset+len(entries)<len(visible) else None
+        print(json.dumps({'entries':entries,'next_offset':next_offset,'total':len(visible)}));return
     if action=='mkdir':
         name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
         if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
