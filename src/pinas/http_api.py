@@ -699,7 +699,7 @@ if __name__=='__main__':
 
 NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
 # Root-only share broker. Strict input validation and independent mount checks.
-import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+import fcntl, json, os, pathlib, pwd, re, subprocess, sys, tempfile
 
 DB=pathlib.Path('/var/lib/pinas/shares.json')
 CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
@@ -1051,7 +1051,14 @@ def main():
     print(json.dumps({'ok':True,'name':name}))
 
 if __name__=='__main__':
-    try:main()
+    try:
+        # Serialize share database and Samba configuration transactions.
+        descriptor=os.open('/run/lock/pinas-share.lock',
+                           os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+        with os.fdopen(descriptor,'r+') as lock:
+            try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError:raise ValueError('Another share operation is in progress')
+            main()
     except Exception as exc:
         print(str(exc),file=sys.stderr);sys.exit(1)
 """
