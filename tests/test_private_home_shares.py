@@ -48,39 +48,7 @@ class PrivateHomeShareTests(unittest.TestCase):
         self.assertIn("Create private home folder share",PAGE)
 
     def test_private_home_rejects_samba_reserved_names_before_user_creation(self):
-        guard="if username.casefold() in ('global','homes','printers','print        self.assertIn("if len(sys.argv)==2 and sys.argv[1]=='migrate':",SHARES)
-        self.assertIn("if target_root.is_symlink() or target.exists() or target.is_symlink()",SHARES)
-        self.assertIn("if any(point==str(legacy) or point.startswith(str(legacy)+'/')",SHARES)
-        self.assertIn("legacy.rename(target)",SHARES)
-        self.assertIn("target.rename(legacy)",SHARES)
-        self.assertIn("if data.get('confirm')!='MOVE SHARE'",API)
-        self.assertIn("migrate_nas_share(name)",API)
-        self.assertIn("data-migrate-share",PAGE)
-        self.assertIn("admin_password:password",PAGE)
-
-    def test_installer_upgrade_updates_both_helpers(self):
-        self.assertGreaterEqual(INSTALLER.count("install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER"),2)
-        self.assertGreaterEqual(INSTALLER.count("install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER"),2)
-
-if __name__=='__main__':
-    unittest.main()
-,'ipc        self.assertIn("if len(sys.argv)==2 and sys.argv[1]=='migrate':",SHARES)
-        self.assertIn("if target_root.is_symlink() or target.exists() or target.is_symlink()",SHARES)
-        self.assertIn("if any(point==str(legacy) or point.startswith(str(legacy)+'/')",SHARES)
-        self.assertIn("legacy.rename(target)",SHARES)
-        self.assertIn("target.rename(legacy)",SHARES)
-        self.assertIn("if data.get('confirm')!='MOVE SHARE'",API)
-        self.assertIn("migrate_nas_share(name)",API)
-        self.assertIn("data-migrate-share",PAGE)
-        self.assertIn("admin_password:password",PAGE)
-
-    def test_installer_upgrade_updates_both_helpers(self):
-        self.assertGreaterEqual(INSTALLER.count("install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER"),2)
-        self.assertGreaterEqual(INSTALLER.count("install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER"),2)
-
-if __name__=='__main__':
-    unittest.main()
-)"
+        guard="if username.casefold() in ('global','homes','printers','print$','ipc$')"
         self.assertIn(guard,API)
         self.assertLess(API.index(guard),API.index("try:provision_nas_user(username,password)"))
 
