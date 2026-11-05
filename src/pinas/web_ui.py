@@ -66,7 +66,7 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 .media-legend{display:flex;flex-wrap:wrap;column-gap:16px;row-gap:8px;margin:8px 0 12px;font-size:.92rem;color:var(--muted)}
 .media-legend span{display:inline-flex;align-items:center;gap:6px}
 .media-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;flex-shrink:0;border:1px solid var(--line)}
-.media-advanced{margin-top:20px}.media-advanced summary{font-weight:650;cursor:pointer;padding:10px 0}.media-advanced>.media-fields{margin-top:12px}.storage-file-types{border-top:1px solid var(--line);margin:14px 0 20px;padding-top:16px}.storage-file-types .line{align-items:center}.storage-file-types .line>div{display:flex;flex-direction:column;gap:4px}.storage-scan-bar{margin:12px 0}.storage-disk-entry+.disk-smart-meta{padding:9px 4px}.storage-file-types [data-scan-status]{min-height:20px}</style></head><body><div id="app"></div><script>
+.media-advanced{margin-top:20px}.media-advanced summary{font-weight:650;cursor:pointer;padding:10px 0}.media-advanced>.media-fields{margin-top:12px}.storage-file-types{border-top:1px solid var(--line);margin:14px 0 20px;padding-top:16px}.storage-file-types .line{align-items:center}.storage-file-types .line>div{display:flex;flex-direction:column;gap:4px}.storage-scan-bar{margin:12px 0}.storage-disk-entry+.disk-smart-meta{padding:9px 4px}.storage-file-types [data-scan-status]{min-height:20px}.media-folder-action{align-items:center;gap:12px;flex-wrap:wrap}.media-folder-action>.small{overflow-wrap:anywhere;flex:1;min-width:180px}.media-folder-buttons{display:flex;gap:8px;flex-wrap:wrap}.media-upload-modal{max-width:650px}.media-upload-modal .field input[type=file]{width:100%;padding:12px 0}.media-upload-progress{display:block;width:100%;height:12px;margin:14px 0}.media-upload-progress[hidden]{display:none}</style></head><body><div id="app"></div><script>
 const app=document.getElementById('app');let info={},cfg={},cpu={},page='Overview',csrf='',role='admin',username='',displayName='',refreshTimer=null,lastNavRect=null;
 // Navigation is derived from actual mounted NAS volumes, not a setup flag.
 // Once provisioned, existing accounts/shares remain accessible for recovery.
@@ -423,7 +423,7 @@ async function loadMediaServer(){
     '<option value="'+esc(s.folder)+'">'+esc(s.name||s.folder)+'</option>').join('');
   const folderActions=(opts.media_dir||[]).map(item=>{
    const path=item.replace(/^[AVP],/,'');
-   return '<div class="line"><span class="small">'+esc(path)+'</span><button type="button" class="btn outline" data-media-grant="'+esc(path)+'">Grant DLNA read access</button></div>';
+   return '<div class="line media-folder-action"><span class="small">'+esc(path)+'</span><div class="media-folder-buttons"><button type="button" class="btn outline" data-media-grant="'+esc(path)+'">Grant DLNA read access</button><button type="button" class="btn outline" data-media-upload="'+esc(path)+'">Upload media</button></div></div>';
   }).join('')||'<p class="hint">Save at least one media folder to configure its read access.</p>';
   const fields=MEDIA_FIELDS.map(([key,label,type])=>{
    const val=opts[key]??defaultValue[key]??'';
@@ -450,6 +450,7 @@ async function loadMediaServer(){
    button.onclick=()=>mediaAction(button.dataset.mediaAction,false);
   });
   panel.querySelectorAll('[data-media-grant]').forEach(button=>button.onclick=()=>mediaAction('grant',true,{path:button.dataset.mediaGrant}));
+  panel.querySelectorAll('[data-media-upload]').forEach(button=>button.onclick=()=>openMediaUpload(button.dataset.mediaUpload));
   panel.querySelector('#ms-library-setup').onclick=async()=>{
    const target=panel.querySelector('#ms-library-volume').value;
    if(!target)return;
@@ -477,6 +478,81 @@ async function loadMediaServer(){
   };
  }catch(error){panel.textContent='Media server unavailable: '+error.message}
 }
+
+function openMediaUpload(path){
+ const overlay=document.createElement('div');overlay.className='modal-overlay';
+ overlay.innerHTML='<section class="card settings-modal media-upload-modal" role="dialog" aria-modal="true" aria-label="Upload MiniDLNA media">'+
+  '<div class="modal-heading"><h2>Upload media</h2><button type="button" class="icon-btn" id="media-upload-close" aria-label="Close">'+CANCEL_ICON+'</button></div>'+
+  '<p>Destination folder: <strong>'+esc(path)+'</strong></p>'+
+  '<label class="field">Choose video, music, picture or subtitle files'+
+  '<input type="file" id="media-upload-files" multiple accept=".avi,.mp4,.m4v,.mkv,.mov,.wmv,.flv,.webm,.mpeg,.mpg,.m2ts,.mts,.ts,.3gp,.vob,.ogv,.mp3,.wav,.aac,.flac,.m4a,.ogg,.opus,.wma,.aiff,.alac,.ape,.jpg,.jpeg,.png,.bmp,.svg,.gif,.webp,.tif,.tiff,.heic,.heif,.avif,.ico,.srt,.vtt,.ass,.ssa,.sub,.idx"></label>'+
+  '<p class="hint">Files are uploaded in small chunks and are never overwritten. Newly uploaded files receive MiniDLNA read access; run Grant DLNA read access if the folder itself does not allow traversal.</p>'+
+  '<progress class="media-upload-progress" id="media-upload-progress" max="100" value="0" hidden></progress>'+
+  '<p id="media-upload-status" role="status">Select one or more files.</p>'+
+  '<div class="modal-actions"><button type="button" class="btn outline" id="media-upload-cancel">Cancel</button>'+
+  '<button type="button" class="btn" id="media-upload-start">Upload files</button></div></section>';
+ document.body.append(overlay);
+ const filesInput=overlay.querySelector('#media-upload-files'),progress=overlay.querySelector('#media-upload-progress');
+ const status=overlay.querySelector('#media-upload-status'),begin=overlay.querySelector('#media-upload-start');
+ const cancel=overlay.querySelector('#media-upload-cancel'),close=overlay.querySelector('#media-upload-close');
+ let uploading=false,cancelled=false,token=null,completed=0;
+ const dismiss=()=>{document.removeEventListener('keydown',key);overlay.remove()};
+ const onCancel=()=>{if(uploading){cancelled=true;status.textContent='Cancelling after the current chunk…';cancel.disabled=true;return}dismiss()};
+ const key=e=>{if(e.key==='Escape'){e.preventDefault();onCancel()}};
+ document.addEventListener('keydown',key);
+ close.onclick=onCancel;cancel.onclick=onCancel;
+ overlay.addEventListener('click',e=>{if(e.target===overlay)onCancel()});
+ begin.onclick=async()=>{
+  const files=[...filesInput.files];
+  if(!files.length){status.textContent='Select at least one media file.';return}
+  if(files.some(file=>file.size<1||file.size>100*1024**3)){
+   status.textContent='Each media file must be between 1 byte and 100 GiB.';return
+  }
+  const password=await fileTextDialog({title:'Upload to MiniDLNA',label:'Administrator password',
+    description:'Authorise uploading '+files.length+' media file(s) to '+path+'. Existing files will not be replaced.',
+    confirmLabel:'Authorise upload',password:true});
+  if(password===null||!overlay.isConnected)return;
+  uploading=true;cancelled=false;completed=0;
+  begin.disabled=true;filesInput.disabled=true;close.disabled=true;progress.hidden=false;
+  const totalSize=files.reduce((sum,file)=>sum+file.size,0);
+  let transferred=0;
+  const update=(file,index,offset)=>{
+   const done=transferred+offset;
+   progress.value=Math.min(100,totalSize?100*done/totalSize:0);
+   status.textContent='File '+index+'/'+files.length+': '+file.name+' — '+size(offset)+' / '+size(file.size);
+  };
+  try{
+   for(let index=0;index<files.length;index++){
+    const file=files[index];let offset=0;token=null;
+    if(cancelled)throw Error('Upload cancelled.');
+    const result=await post('/api/media-upload',{action:'start',path,name:file.name,size:file.size,admin_password:password});
+    token=result.token;
+    while(offset<file.size){
+     if(cancelled)throw Error('Upload cancelled.');
+     const bytes=new Uint8Array(await file.slice(offset,offset+384*1024).arrayBuffer());
+     let binary='';
+     for(let n=0;n<bytes.length;n+=8192)binary+=String.fromCharCode(...bytes.subarray(n,n+8192));
+     const answer=await post('/api/media-upload',{action:'chunk',path,token,offset,content:btoa(binary)});
+     if(!Number.isInteger(answer.offset)||answer.offset<=offset)throw Error('Unexpected transfer offset');
+     offset=answer.offset;update(file,index+1,offset);
+    }
+    if(cancelled)throw Error('Upload cancelled.');
+    await post('/api/media-upload',{action:'finish',path,token});
+    token=null;completed++;transferred+=file.size;
+   }
+   mediaSuccess=completed+' media file(s) uploaded to '+path+'. MiniDLNA will index them when scanning is enabled.';
+   dismiss();await loadMediaServer();
+  }catch(err){
+   if(token){try{await post('/api/media-upload',{action:'cancel',path,token})}catch(_){}}
+   status.textContent=(cancelled?'Upload cancelled. ': 'Upload failed: ')+err.message+
+     (completed?' '+completed+' earlier file(s) uploaded successfully.':'');
+   begin.disabled=false;filesInput.disabled=false;close.disabled=false;cancel.disabled=false;
+   if(cancelled){dismiss();if(completed){mediaSuccess=completed+' media file(s) uploaded to '+path;await loadMediaServer()}}
+  }finally{uploading=false}
+ };
+ filesInput.focus();
+}
+
 async function mediaAction(action,needsPassword,settings){
  if(mediaBusy)return;
  const panel=document.getElementById('media-server-panel');if(!panel)return;

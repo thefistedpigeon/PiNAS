@@ -18,6 +18,7 @@ def expand_modules(target):
         ('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"]),
         ('pinas-nas-files',NAS_FILES_HELPER,[""]),
         ('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"]),
+        ('pinas-media-upload',MEDIA_UPLOAD_HELPER,["start","chunk","finish","cancel"]),
         ('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"]),
         ('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"]),
         ('pinas-smart-health',SMART_HEALTH_HELPER,[""]),
@@ -132,6 +133,7 @@ def install(args):
     if first_install and Path('/etc/samba/smb.conf').is_file():
         subprocess.run(['/usr/bin/python3',str(reset_helper),'reset'],check=True,timeout=45)
     install_privileged_helper('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"])
+    install_privileged_helper('pinas-media-upload',MEDIA_UPLOAD_HELPER,["start","chunk","finish","cancel"])
     share_helper=install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"])
     files_helper=install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
     updater_helper=install_privileged_helper('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"])

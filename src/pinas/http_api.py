@@ -135,7 +135,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/media-upload','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -200,6 +200,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':str(exc)},400)
             return
         if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+        if path=='/api/media-upload':
+            action=data.get('action')
+            if action not in ('start','chunk','finish','cancel'):
+                self.json({'error':'Unsupported media upload operation'},400);return
+            if action=='start':
+                password=data.get('admin_password')
+                if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                    time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
+            details={key:data[key] for key in ('path','name','size','token','offset','content') if key in data}
+            try:self.json(media_upload_action(action,details))
+            except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
+                self.json({'error':str(exc)},400)
+            return
         if path=='/api/media-server':
             action=data.get('action')
             if action not in ('install','save','start','stop','restart','rescan','grant','rebuild','setup-library'):
