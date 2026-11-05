@@ -244,6 +244,9 @@ class Handler(BaseHTTPRequestHandler):
             self.json({'ok':True});return
         if path=='/api/nas-users':
             username=data.get('username');password=data.get('password');display_name=data.get('display_name')
+            create_home=data.get('create_home_share',False);home_volume=data.get('home_volume');admin_password=data.get('admin_password')
+            if type(create_home) is not bool:
+                self.json({'error':'Invalid private home share option.'},400);return
             if not isinstance(username,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',username) or username in ('pinas','root','admin','nobody'):
                 self.json({'error':'Use a unique lowercase username (3–32 characters).'},400);return
             if not isinstance(password,str) or not 12<=len(password)<=256:
@@ -256,6 +259,18 @@ class Handler(BaseHTTPRequestHandler):
             if admin_record(cfg,username):
                 self.json({'error':'Username reserved for the PiNAS administrator.'},409);return
             if any(u['name']==username for u in nas_user_list()):self.json({'error':'Samba user already exists.'},409);return
+            if create_home:
+                if not isinstance(home_volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',home_volume) or '..' in home_volume:
+                    self.json({'error':'Select a valid persistent disk for the private home share.'},400);return
+                if not isinstance(admin_password,str) or not verify(admin_password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                    time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+                if any(username.casefold()==item.get('name','').casefold() for item in nas_share_list()):
+                    self.json({'error':'A share with this username already exists.'},409);return
+                available=[v for d in hardware_discovery().get('disks',[]) for v in d.get('volumes',[])
+                           if v.get('path')==home_volume and v.get('persistent') and v.get('mounts')
+                           and v.get('fs') in ('ext4','xfs','btrfs') and not v.get('read_only')]
+                if len(available)!=1:
+                    self.json({'error':'Selected home share disk is not mounted and persistent.'},409);return
             try:provision_nas_user(username,password)
             except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:
                 self.json({'error':str(exc)},503);return
@@ -265,7 +280,17 @@ class Handler(BaseHTTPRequestHandler):
                 names[username]=display_name;latest['nas_display_names']=names;save(latest)
             global DISCOVERY_AT
             DISCOVERY_AT=0
-            self.json({'ok':True,'username':username,'display_name':display_name});return
+            if create_home:
+                try:
+                    # Share creation runs in the root-owned broker and applies
+                    # Samba valid users + root-owned POSIX ACLs for this user.
+                    create_nas_share(username,home_volume,{username:'rw'})
+                except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:
+                    self.json({'error':'NAS user was created, but the private home share failed: '+str(exc),
+                               'created_user':True,'username':username},503);return
+            DISCOVERY_AT=0
+            self.json({'ok':True,'username':username,'display_name':display_name,
+                       'created_home_share':create_home});return
         if path=='/api/storage':
             if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             device=data.get('device');password=data.get('admin_password')
