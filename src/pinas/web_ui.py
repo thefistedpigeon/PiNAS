@@ -793,14 +793,14 @@ async function renderFiles(){
    }catch(e){msg.textContent=e.message;if(token){try{await call('upload_cancel',{token})}catch(_){}}return false}
    finally{panel.hidden=true;activeTransfer=null}return true;
  }
- async function show(){try{
+ async function show(offset=0){try{
    msg.textContent='';let rows;
    if(!currentShare){const result=await call('shares');shares=result.shares||[];rows=shares.map(x=>({name:x.name,dir:true,share:true,read_only:x.read_only}));}
-   else {const listed=await call('list');rows=listed.entries||[];if(listed.truncated){const message=document.getElementById('file-message');if(message)message.textContent='Only the first '+rows.length+' entries are shown. Use SMB to browse the entire folder.'}};
+   else {const listed=await call('list',{offset});rows=listed.entries||[];var nextOffset=listed.next_offset,varTotal=listed.total};
    document.getElementById('file-breadcrumb').textContent=currentShare?currentShare+(currentPath?' / '+currentPath:''):'My Shares';
    document.getElementById('file-back').disabled=!currentShare;
    document.getElementById('file-new').disabled=readonly();document.getElementById('file-upload').disabled=readonly();
-   items.replaceChildren();if(!rows.length){let p=document.createElement('p');p.textContent='Nothing here yet.';items.append(p)}
+   if(!offset)items.replaceChildren();if(!rows.length&&!offset){let p=document.createElement('p');p.textContent='Nothing here yet.';items.append(p)}
    for(const x of rows){const line=document.createElement('div');line.className='line';const title=document.createElement('button');title.className='file-entry';title.innerHTML=fileIcon(x.dir?'folder':'file')+`<span class="file-name">${esc(x.name)}</span>`;line.append(title);
      title.onclick=async()=>{if(x.share){currentShare=x.name;currentPath='';await show()}else if(x.dir){currentPath=joined(currentPath,x.name);await show()}else await downloadFile(joined(currentPath,x.name),x.name,x.size)};
      // Downloads are available for files regardless of whether the share is read-only.
@@ -815,6 +815,7 @@ async function renderFiles(){
          if(password!==null)await action('delete',{password});
        };line.append(del);
      }items.append(line)}
+   if(nextOffset!==null&&nextOffset!==undefined){const more=document.createElement('button');more.className='btn outline';more.textContent='Load more files ('+Math.min(nextOffset,varTotal)+' of '+varTotal+')';more.onclick=()=>{more.remove();show(nextOffset)};items.append(more)}
    }catch(e){msg.textContent=e.message}}
  document.getElementById('file-refresh').onclick=()=>show();
  document.getElementById('file-back').onclick=()=>{if(currentPath)currentPath=currentPath.split('/').slice(0,-1).join('/');else currentShare='';show()};
