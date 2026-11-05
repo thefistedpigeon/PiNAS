@@ -1,6 +1,8 @@
 class Handler(BaseHTTPRequestHandler):
     server_version='PiNAS/'+VERSION
-    def log_message(self,fmt,*args): print('%s - %s'%(self.address_string(),fmt%args),file=sys.stderr)
+    def log_message(self,fmt,*args):
+        if self.path.split('?',1)[0] in ('/api/state','/api/pinas-build'):return
+        print('%s - %s'%(self.address_string(),fmt%args),file=sys.stderr)
     def send_headers(self,code=200,kind='application/json',cookie=None):
         self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY');self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
         if isinstance(self.connection,ssl.SSLSocket):self.send_header('Strict-Transport-Security','max-age=86400')
@@ -14,7 +16,7 @@ class Handler(BaseHTTPRequestHandler):
         SESSIONS.pop(token,None);return '',None
     def do_GET(self):
         path=urlparse(self.path).path
-        if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE.encode());return
+        if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE_BYTES);return
         if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return
         if path=='/api/pinas-upgrade':
             _,session=self.session()
@@ -508,7 +510,9 @@ class Handler(BaseHTTPRequestHandler):
             with SETUP_LOCK:
                 latest=load()
                 latest.update(settings)
-                latest['nas_display_names']=names
+                existing_names=latest.get('nas_display_names',{})
+                if not isinstance(existing_names,dict):existing_names={}
+                latest['nas_display_names']={**existing_names,**names}
                 save(latest)
             self.json({'ok':True,'settings':{key:latest.get(key) for key in BACKUP_SETTINGS},
                        'message':'Settings restored. Accounts, shares, disks and files were not modified.'});return
@@ -1330,8 +1334,10 @@ def upgrade(source):
     try:
         with tempfile.TemporaryFile(mode='w+t',encoding='utf-8') as output:
             p=subprocess.run(['/usr/bin/apt-get','upgrade','-y','--no-remove',
+                              '-o','DPkg::Lock::Timeout=300',
                               '-o','Dpkg::Options::=--force-confold'],
-                             stdout=output,stderr=subprocess.STDOUT,timeout=3300,check=False)
+                             stdout=output,stderr=subprocess.STDOUT,timeout=3300,check=False,
+                             env={**os.environ,'DEBIAN_FRONTEND':'noninteractive','DEBIAN_PRIORITY':'critical'})
             code=p.returncode
             output.seek(0)
             tail=''

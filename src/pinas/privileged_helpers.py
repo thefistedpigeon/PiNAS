@@ -193,7 +193,7 @@ def main():
         if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
         entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
         try:
-            result=subprocess.run([smartctl,'-j','-H','-A',device],capture_output=True,text=True,timeout=12)
+            result=subprocess.run([smartctl,'-j','-n','standby','-H','-A',device],capture_output=True,text=True,timeout=12)
             data=json.loads(result.stdout)
             health=data.get('smart_status',{}).get('passed')
             if health is True:entry['status']='Healthy'

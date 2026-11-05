@@ -32,18 +32,28 @@ def install_privileged_helper(name, source, allowed_commands):
     """Install a root-owned helper with a validated, narrowly scoped sudoers rule."""
     if not re.fullmatch(r'pinas-[a-z-]+', name):
         raise ValueError('Invalid privileged helper name')
+    # Fail closed if sudoers validation is unavailable; never install an
+    # unverified, privileged policy or clobber a previously valid rule.
+    visudo=shutil.which('visudo')
+    if not visudo:raise RuntimeError('visudo is required to install PiNAS helpers')
     helper=Path('/usr/local/libexec')/name
-    helper.write_text(source)
-    os.chown(helper,0,0)
-    os.chmod(helper,0o700)
     rule=Path('/etc/sudoers.d')/name
     commands=', '.join('/usr/local/libexec/'+name+(' '+arg if arg else '') for arg in allowed_commands)
-    rule.write_text('pinas ALL=(root) NOPASSWD: '+commands+'\n')
-    os.chown(rule,0,0)
-    os.chmod(rule,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(rule)],capture_output=True).returncode:
-        rule.unlink(missing_ok=True)
-        raise RuntimeError('Invalid PiNAS sudoers configuration for '+name)
+    staged_rule=rule.with_name('.'+name+'.'+secrets.token_hex(6)+'.tmp')
+    staged_helper=helper.with_name('.'+name+'.'+secrets.token_hex(6)+'.tmp')
+    try:
+        staged_rule.write_text('pinas ALL=(root) NOPASSWD: '+commands+'\n')
+        os.chown(staged_rule,0,0);os.chmod(staged_rule,0o440)
+        check=subprocess.run([visudo,'-cf',str(staged_rule)],capture_output=True,text=True,timeout=10)
+        if check.returncode:raise RuntimeError('Invalid PiNAS sudoers policy: '+check.stderr[-180:])
+        staged_helper.write_text(source)
+        os.chown(staged_helper,0,0);os.chmod(staged_helper,0o700)
+        # Install executable first. Previous rule stays active if this fails.
+        os.replace(staged_helper,helper)
+        os.replace(staged_rule,rule)
+    finally:
+        staged_rule.unlink(missing_ok=True)
+        staged_helper.unlink(missing_ok=True)
     return helper
 
 def install(args):
