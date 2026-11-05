@@ -260,6 +260,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Username reserved for the PiNAS administrator.'},409);return
             if any(u['name']==username for u in nas_user_list()):self.json({'error':'Samba user already exists.'},409);return
             if create_home:
+                if username.casefold() in ('global','homes','printers','print$','ipc$'):
+                    self.json({'error':'Username conflicts with a reserved Samba share name.'},400);return
                 if not re.fullmatch(r'[a-z][a-z0-9_-]{2,31}',username):
                     self.json({'error':'Private home share names must start with a letter.'},400);return
                 if not isinstance(home_volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',home_volume) or '..' in home_volume:
