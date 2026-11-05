@@ -39,6 +39,20 @@ class MediaServerTests(unittest.TestCase):
             with self.assertRaises(ValueError):ns['validate'](data)
         for path in ('/etc','/mnt/pinas/../../etc'):
             with self.assertRaises(ValueError):ns['safe_path'](path)
+    def test_permission_grant_is_explicit_and_restricted(self):
+        self.assertIn("'grant'",HELPER)
+        self.assertIn("safe_path(data.get('path'))",HELPER)
+        self.assertIn("configured_media_folders()",HELPER)
+        self.assertIn("u:minidlna:rX",HELPER)
+        self.assertIn("d:u:minidlna:rX",HELPER)
+        self.assertIn("data-media-grant",UI)
+        self.assertIn("if action in ('install','save','grant','rebuild'):",API)
+    def test_rebuild_is_admin_confirmed_and_limited_to_database(self):
+        self.assertIn("'rebuild'",HELPER)
+        self.assertIn("files.db",HELPER)
+        self.assertIn("'/var/cache/minidlna'",HELPER)
+        self.assertIn("'/var/lib/minidlna'",HELPER)
+        self.assertIn("Rebuild library",UI)
     def test_configuration_preserves_other_directives_and_rolls_back(self):
         ns=scope()
         with tempfile.TemporaryDirectory() as root:
