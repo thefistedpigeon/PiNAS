@@ -554,21 +554,74 @@ class Handler(BaseHTTPRequestHandler):
         save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
 
 HOSTNAME_HELPER = r"""#!/usr/bin/env python3
-import json, re, subprocess
+"""Apply host identity and renew only PiNAS-generated self-signed TLS."""
+import grp,json,os,pwd,re,shutil,subprocess,tempfile,time
 from pathlib import Path
+
+ROOT=Path('/var/lib/pinas')
+CERT=ROOT/'tls-cert.pem'
+KEY=ROOT/'tls-key.pem'
+MANAGED=ROOT/'tls-managed'
+
+def openssl(*args):
+    return subprocess.run(['/usr/bin/openssl',*args],capture_output=True,text=True,timeout=15)
+
+def refresh_tls(hostname):
+    if not CERT.exists() or not KEY.exists() or not Path('/usr/bin/openssl').is_file():return
+    if not MANAGED.exists():
+        # Existing certificates can be user-provided. Only adopt the exact
+        # historical PiNAS default self-signed certificate (CN=pinas.local).
+        info=openssl('x509','-in',str(CERT),'-noout','-subject','-issuer','-ext','subjectAltName')
+        if info.returncode:return
+        sections=info.stdout.splitlines()
+        subject=next((line for line in sections if line.startswith('subject=')),'')
+        issuer=next((line for line in sections if line.startswith('issuer=')),'')
+        if not (re.search(r'CN\s*=\s*pinas\.local\b',subject)
+                and re.search(r'CN\s*=\s*pinas\.local\b',issuer)
+                and 'DNS:pinas.local' in info.stdout):return
+        MANAGED.write_text('pinas-self-signed-v1\n')
+        os.chmod(MANAGED,0o600)
+    if MANAGED.read_text().strip()!='pinas-self-signed-v1':return
+    info=openssl('x509','-in',str(CERT),'-noout','-ext','subjectAltName')
+    valid=openssl('x509','-in',str(CERT),'-noout','-checkend','5184000')
+    if info.returncode==0 and 'DNS:'+hostname+'.local' in info.stdout and valid.returncode==0:return
+    temporary=Path(tempfile.mkdtemp(prefix='.pinas-tls-',dir=str(ROOT)))
+    try:
+        new_cert=temporary/'cert.pem';new_key=temporary/'key.pem'
+        command=['/usr/bin/openssl','req','-x509','-newkey','rsa:3072',
+                 '-sha256','-nodes','-days','365','-keyout',str(new_key),
+                 '-out',str(new_cert),'-subj','/CN='+hostname+'.local',
+                 '-addext','subjectAltName=DNS:'+hostname+'.local,DNS:localhost,IP:127.0.0.1']
+        subprocess.run(command,check=True,capture_output=True,timeout=45)
+        user=pwd.getpwnam('pinas').pw_uid;group=grp.getgrnam('pinas').gr_gid
+        os.chown(new_key,user,group);os.chmod(new_key,0o600)
+        os.chown(new_cert,0,0);os.chmod(new_cert,0o644)
+        # TLS context reads certificates at startup. Restart only after
+        # writing both files, scheduled separately from the hostname service.
+        os.replace(new_key,KEY)
+        os.replace(new_cert,CERT)
+    finally:
+        shutil.rmtree(temporary,ignore_errors=True)
+    runner='/usr/bin/systemd-run'
+    if Path(runner).is_file():
+        subprocess.run([runner,'--quiet','--unit=pinas-cert-refresh-'+str(int(time.time())),
+          '--on-active=10s','/usr/bin/systemctl','restart','pinas.service'],
+          check=True,capture_output=True,timeout=15)
+
 try:
-    path=Path('/var/lib/pinas/config.json')
-    if not path.exists():raise SystemExit(0)
-    cfg=json.loads(path.read_text())
-    hostname=cfg.get('hostname','')
-    if not hostname:raise SystemExit(0)
-    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
-        raise ValueError('Invalid hostname')
-    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
-    if current!=hostname:
-        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+    path=ROOT/'config.json'
+    if path.exists():
+        cfg=json.loads(path.read_text())
+        hostname=cfg.get('hostname','')
+        if hostname:
+            if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+                raise ValueError('Invalid hostname')
+            current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+            if current!=hostname:
+                subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+            refresh_tls(hostname)
 except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
-    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+    raise SystemExit('PiNAS hostname or managed TLS not applied: '+str(exc))
 """
 
 NAS_USER_HELPER = r"""#!/usr/bin/env python3
