@@ -228,7 +228,7 @@ function bindSharePermissionGroups(overlay,initialPublic=false,initialWrite=fals
  publicBox.checked=initialPublic;writeBox.checked=initialWrite;publicBox.addEventListener('change',sync);sync();
  return ()=>{const access={};if(!publicBox.checked)choices.forEach(box=>{if(box.checked)access[box.dataset.shareUser]=box.dataset.shareLevel});return {access,public:publicBox.checked,public_write:publicBox.checked&&writeBox.checked}};
 }
-async async function migrateNasShare(name){
+async function migrateNasShare(name){
  const item=(info.share_details||[]).find(s=>s.name===name);
  if(!item||!item.folder?.includes('/PiNAS Shares/'))return;
  const password=await fileTextDialog({title:'Move legacy share folder',label:'Administrator password',description:'Move the '+name+' share to pinas-shares on the same disk. Samba connections to this folder may briefly be interrupted. Existing files and permissions will be preserved. No destination folder will be overwritten.',confirmLabel:'Move folder',password:true});
