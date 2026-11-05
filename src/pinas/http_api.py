@@ -672,7 +672,13 @@ def main():
             if not isinstance(device,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',device) or '..' in device:continue
             try:
                 mount=run(['/usr/bin/findmnt','-n','-o','TARGET','--source',device]).stdout.strip().splitlines()
-                if len(mount)==1:item['folder']=str(pathlib.Path(mount[0])/'PiNAS Shares'/item.get('name',''))
+                if len(mount)==1:
+                    base=pathlib.Path(mount[0]);name=item.get('name','')
+                    # Historical records without an explicit folder remain on their
+                    # original path; never implicitly move existing data.
+                    legacy=base/'PiNAS Shares'/name
+                    modern=base/'pinas-shares'/name
+                    item['folder']=str(legacy if legacy.is_dir() else modern)
             except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired):pass
         print(json.dumps(items));return
     if len(sys.argv)==2 and sys.argv[1]=='edit':
@@ -695,7 +701,7 @@ def main():
         item=matches[0]
         mount=check_volume(item.get('volume'))
         folder=pathlib.Path(item.get('folder') or str(mount/'PiNAS Shares'/name))
-        if folder.parent!=mount/'PiNAS Shares' or folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:raise ValueError('Unsafe managed share folder')
+        if folder.parent not in (mount/'PiNAS Shares',mount/'pinas-shares') or folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:raise ValueError('Unsafe managed share folder')
         oldconf=CONF.read_text()
         old_smb=SMB.read_text()
         new_smb=guest_mapping(old_smb) if public else old_smb
@@ -787,7 +793,7 @@ def main():
     existing=run(['/usr/bin/testparm','-s']).stdout
     if any(line.strip().casefold()=='['+name.casefold()+']' for line in existing.splitlines()):raise ValueError('Share name already used by Samba')
     # No preexisting folder is ever adopted or modified by this operation.
-    root=mount/'PiNAS Shares'
+    root=mount/'pinas-shares'
     if root.is_symlink():raise ValueError('Unsafe share root')
     root.mkdir(mode=0o711,exist_ok=True)
     if root.stat().st_uid!=0 or (root.stat().st_mode & 0o022):raise ValueError('Share root must be root-owned and not group/world writable')
@@ -915,8 +921,10 @@ def main():
     if p.returncode or len(targets)!=1:raise ValueError('Share storage is offline')
     mount=pathlib.Path(targets[0]).resolve(strict=True)
     if str(mount)=='/' or str(mount).startswith(('/etc/','/var/','/usr/','/home/','/boot/')):raise ValueError('Protected mount')
-    root=mount/'PiNAS Shares'/s['name']
-    if root.is_symlink() or not root.is_dir():raise ValueError('Share folder unavailable')
+    root=pathlib.Path(s.get('folder') or str(mount/'PiNAS Shares'/s['name']))
+    if root.parent not in (mount/'PiNAS Shares',mount/'pinas-shares') or root.name!=s['name'] or root.is_symlink() or not root.is_dir():
+        raise ValueError('Share folder unavailable')
+    if root.parent.is_symlink():raise ValueError('Unsafe share root')
     relative=q.get('path','');target=safe_path(root,relative)
     writable=s['access'][user]=='rw'
     if action in ('mkdir','delete','rename','move','copy','upload','upload_start','upload_chunk','upload_finish','upload_cancel') and not writable:raise ValueError('Read-only share')
