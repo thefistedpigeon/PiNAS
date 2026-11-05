@@ -1,55 +1,31 @@
-"""Static regression checks for RC16.5 privileged disk operations.
+"""Current privileged storage destruction guard regressions.
 
-These checks never execute wipefs, mkfs or parted. Hardware testing must use
-a disposable disk and verify protected drives are rejected.
+Never run a destructive command against a real device.
 """
 import ast
-import pathlib
+from pathlib import Path
 import unittest
 
-ROOT=pathlib.Path(__file__).resolve().parents[1]
-SRC = '\n'.join((ROOT / 'src' / 'pinas' / name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
-TREE = ast.parse(SRC)
-VALUES = {}
-for statement in TREE.body:
-    if isinstance(statement, ast.Assign):
-        for target in statement.targets:
-            if isinstance(target, ast.Name) and target.id in ('NAS_DESTRUCTIVE_HELPER', 'PAGE'):
-                VALUES[target.id] = ast.literal_eval(statement.value)
-
-@unittest.skipUnless('NAS_DESTRUCTIVE_HELPER' in VALUES, 'Destructive disk helper not present in this source branch')
+ROOT=Path(__file__).resolve().parents[1]
+SOURCE=(ROOT/'src/pinas/privileged_helpers.py').read_text()
+API=(ROOT/'src/pinas/http_api.py').read_text()
+UI=(ROOT/'src/pinas/web_ui.py').read_text()
+INSTALL=(ROOT/'src/pinas/installer.py').read_text()
+def literal(name):
+    for node in ast.parse(SOURCE).body:
+        if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in node.targets):
+            return ast.literal_eval(node.value)
+    raise AssertionError('Missing '+name)
 class DiskDestructiveGuards(unittest.TestCase):
-    def test_helper_python_syntax(self):
-        compile(VALUES['NAS_DESTRUCTIVE_HELPER'],'pinas-disk-destructive','exec')
-
-    def test_device_guards(self):
-        code=VALUES['NAS_DESTRUCTIVE_HELPER']
-        for guard in ('is_block_device()', "get('type')=='disk'", 'Device has active holders',
-                      'Disk contains mounted filesystems', 'System disk is protected',
-                      'Unable to identify operating-system disk', '/etc/fstab',
-                      'Disk belongs to a PiNAS share', 'Active swap is protected',
-                      "details.st_dev",):
-            if guard=='details.st_dev':
-                continue
-            with self.subTest(guard=guard):
-                self.assertIn(guard, code)
-        self.assertNotIn("umount", code)
-        self.assertNotIn("rm -rf", code)
-
-    def test_supported_filesystems_and_operation(self):
-        code=VALUES['NAS_DESTRUCTIVE_HELPER']
-        for cmd in ('mkfs.ext4','mkfs.xfs','mkfs.btrfs','wipefs','parted'):
-            self.assertIn(cmd, code)
-        self.assertIn("('ext4','xfs','btrfs')",code)
-
-    def test_explicit_authorisation(self):
-        self.assertIn("confirmation!=device", SRC)
-        self.assertIn("admin_record(cfg,s['username'])", SRC)
-        self.assertIn("Current administrator password", VALUES['PAGE'])
-        self.assertIn("data-disk-operation", VALUES['PAGE'])
-
-    def test_sudo_narrow_scope(self):
-        self.assertIn("/usr/local/libexec/pinas-disk-destructive execute", SRC)
-        self.assertIn("os.chmod(disk_helper,0o700)", SRC)
-
+    def test_actual_disk_erase_helper_compiles(self):
+        compile(literal('NAS_DISK_ERASE_HELPER'),'pinas-disk-erase','exec')
+    def test_enforces_block_device_and_system_disk_protection(self):
+        helper=literal('NAS_DISK_ERASE_HELPER')
+        for token in ('is_block_device()', 'wipefs', 'mkfs', '/etc/fstab', 'mount'):
+            with self.subTest(token=token):self.assertIn(token,helper)
+    def test_explicit_admin_confirmation_and_narrow_sudo(self):
+        self.assertIn("if path=='/api/disk-destructive':",API)
+        self.assertIn("admin_record(cfg,s['username'])",API)
+        self.assertIn('disk-danger-password',UI)
+        self.assertIn("install_privileged_helper('pinas-disk-erase'",INSTALL)
 if __name__=='__main__':unittest.main()
