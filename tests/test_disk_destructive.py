@@ -108,7 +108,7 @@ class DiskDestructiveTests(unittest.TestCase):
         part={'path':'/dev/sdb1'}
         with mock.patch.object(namespace['Path'],'is_block_device',return_value=True):
             namespace['erase_signatures']([disk,part])
-        self.assertEqual(calls,[('wipefs','--all','--force','/dev/sdb1','/dev/sdb')])
+        self.assertEqual(calls,[('wipefs','--lock=yes','--all','--force','/dev/sdb1','/dev/sdb')])
         self.assertNotIn("blockdev','--rereadpt",HELPER)
 
     def test_no_secure_erase_claim_and_only_allowlisted_formatters(self):
