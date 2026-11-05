@@ -236,7 +236,8 @@ function diskSummary(){
   const fs=d.filesystems||[],total=fs.reduce((a,f)=>a+(f.total||0),0),used=fs.reduce((a,f)=>a+(f.used||0),0),pct=total?Math.min(100,Math.round(used/total*100)):0;
   return '<div class="disk-summary"><div class="disk-heading"><strong>'+esc(d.model||d.name||'Attached disk')+'</strong><span class="small">'+
    (total?size(used)+' used · '+size(Math.max(0,total-used))+' available':'Usage unavailable')+'</span></div>'+
-   '<div class="bar disk-usage" role="progressbar" aria-label="'+esc(d.model||d.name||'Disk')+' space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+pct+'"><i style="width:'+pct+'%"></i></div></div>';
+   '<div class="bar disk-usage" role="progressbar" aria-label="'+esc(d.model||d.name||'Disk')+' space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+pct+'"><i style="width:'+pct+'%"></i></div>'+ 
+   '<div class="disk-smart-meta" data-smart-device="'+esc(d.path||'')+'"><span class="small">Health: <strong data-smart-status>Not checked</strong></span><span class="small">Temperature: <strong data-smart-temp>—</strong></span><span class="small" data-smart-detail></span></div></div>';
  }).join('')||'<p class="small">No attached data disks detected.</p>';
 }
 function storageScanPanels(d){
