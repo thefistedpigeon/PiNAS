@@ -10,40 +10,67 @@ def expand_modules(target):
         tmp.write_text(source,encoding='utf-8')
         os.chmod(tmp,0o644)
         os.replace(tmp,destination)
-    # Browser-based upgrades invoke --extract-modules as root. Synchronise the
-    # narrowly scoped APT helper and sudo rule too, otherwise scheduled updates
-    # would continue to use the older, non-logging helper after a GUI upgrade.
-    # Keep destructive operations isolated from the non-destructive adoption helper.
-    # Existing browser-driven upgrades update the root helper and its sudoers rule.
-    # The browser updater must also refresh the storage-adoption helper;
-    # otherwise existing installations retain older mount logic.
-    install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"])
-    install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
-    install_privileged_helper('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"])
-    install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
-    install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"])
-    if Path('/usr/local/libexec/pinas-apt-index').is_file():
-        install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,
-          ["refresh","upgrade","firmware-check","schedule off","schedule daily",
-           "schedule weekly","schedule monthly","reboot","prune 6","prune 12",
-           "restart-auto timer","restart-auto service"])
+    # GUI upgrades call --extract-modules, not --install. Refresh every
+    # managed helper and its sudoers allowlist to avoid old code after update.
+    specifications=(
+        ('pinas-nas-user',NAS_USER_HELPER,["create *","password *","list"]),
+        ('pinas-smb-reset',SMB_RESET_HELPER,["reset"]),
+        ('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"]),
+        ('pinas-nas-files',NAS_FILES_HELPER,[""]),
+        ('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"]),
+        ('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"]),
+        ('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"]),
+        ('pinas-smart-health',SMART_HEALTH_HELPER,[""]),
+        ('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"]),
+        ('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily",
+             "schedule weekly","schedule monthly","reboot","prune 6","prune 12",
+             "restart-auto timer","restart-auto service"]),
+    )
+    for name,source,allowed in specifications:
+        install_privileged_helper(name,source,allowed)
+    # The hostname listener is a root-owned systemd helper (not in sudoers).
+    # Existing GUI installations need the new TLS-aware version as well.
+    hostname_helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    if hostname_helper.exists():
+        staged=hostname_helper.with_name('.pinas-apply-hostname-'+secrets.token_hex(6))
+        try:
+            staged.write_text(HOSTNAME_HELPER)
+            os.chown(staged,0,0);os.chmod(staged,0o755)
+            os.replace(staged,hostname_helper)
+        finally:
+            staged.unlink(missing_ok=True)
+        timer=Path('/etc/systemd/system/pinas-hostname.timer')
+        timer.write_text('[Unit]\nDescription=Renew PiNAS-managed TLS certificates\n[Timer]\nOnCalendar=monthly\nPersistent=true\nUnit=pinas-hostname.service\n[Install]\nWantedBy=timers.target\n')
+        subprocess.run(['systemctl','daemon-reload'],check=True,timeout=20)
+        subprocess.run(['systemctl','enable','--now','pinas-hostname.timer'],check=True,timeout=25)
+        subprocess.run(['systemctl','start','pinas-hostname.service'],check=True,timeout=25)
 
 def install_privileged_helper(name, source, allowed_commands):
     """Install a root-owned helper with a validated, narrowly scoped sudoers rule."""
     if not re.fullmatch(r'pinas-[a-z-]+', name):
         raise ValueError('Invalid privileged helper name')
+    # Fail closed if sudoers validation is unavailable; never install an
+    # unverified, privileged policy or clobber a previously valid rule.
+    visudo=shutil.which('visudo')
+    if not visudo:raise RuntimeError('visudo is required to install PiNAS helpers')
     helper=Path('/usr/local/libexec')/name
-    helper.write_text(source)
-    os.chown(helper,0,0)
-    os.chmod(helper,0o700)
     rule=Path('/etc/sudoers.d')/name
     commands=', '.join('/usr/local/libexec/'+name+(' '+arg if arg else '') for arg in allowed_commands)
-    rule.write_text('pinas ALL=(root) NOPASSWD: '+commands+'\n')
-    os.chown(rule,0,0)
-    os.chmod(rule,0o440)
-    if shutil.which('visudo') and subprocess.run(['visudo','-cf',str(rule)],capture_output=True).returncode:
-        rule.unlink(missing_ok=True)
-        raise RuntimeError('Invalid PiNAS sudoers configuration for '+name)
+    staged_rule=rule.with_name('.'+name+'.'+secrets.token_hex(6)+'.tmp')
+    staged_helper=helper.with_name('.'+name+'.'+secrets.token_hex(6)+'.tmp')
+    try:
+        staged_rule.write_text('pinas ALL=(root) NOPASSWD: '+commands+'\n')
+        os.chown(staged_rule,0,0);os.chmod(staged_rule,0o440)
+        check=subprocess.run([visudo,'-cf',str(staged_rule)],capture_output=True,text=True,timeout=10)
+        if check.returncode:raise RuntimeError('Invalid PiNAS sudoers policy: '+check.stderr[-180:])
+        staged_helper.write_text(source)
+        os.chown(staged_helper,0,0);os.chmod(staged_helper,0o700)
+        # Install executable first. Previous rule stays active if this fails.
+        os.replace(staged_helper,helper)
+        os.replace(staged_rule,rule)
+    finally:
+        staged_rule.unlink(missing_ok=True)
+        staged_helper.unlink(missing_ok=True)
     return helper
 
 def install(args):
@@ -96,6 +123,8 @@ def install(args):
     Path('/etc/systemd/system/pinas-hostname.service').write_text(unit)
     path_unit='''[Unit]\nDescription=Apply PiNAS hostname when configuration changes\n[Path]\nPathChanged=/var/lib/pinas/config.json\nUnit=pinas-hostname.service\n[Install]\nWantedBy=multi-user.target\n'''
     Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
+    tls_timer='''[Unit]\nDescription=Check PiNAS hostname and managed TLS certificate monthly\n[Timer]\nOnCalendar=monthly\nPersistent=true\nUnit=pinas-hostname.service\n[Install]\nWantedBy=timers.target\n'''
+    Path('/etc/systemd/system/pinas-hostname.timer').write_text(tls_timer)
     user_helper=install_privileged_helper('pinas-nas-user',NAS_USER_HELPER,["create *","password *","list"])
     reset_helper=install_privileged_helper('pinas-smb-reset',SMB_RESET_HELPER,["reset"])
     if first_install and Path('/etc/samba/smb.conf').is_file():
@@ -112,15 +141,21 @@ def install(args):
     auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
     os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
     # Existing schedule is preserved when upgrading PiNAS.
-    # Generate a persistent per-install certificate; never replace it on upgrades.
+    # Only PiNAS-issued certificates are marked for hostname-aware rotation.
+    generated_tls=False
     if not TLS_CERT.exists() or not TLS_KEY.exists():
         if TLS_CERT.exists() or TLS_KEY.exists():sys.exit('Incomplete TLS certificate pair; resolve manually before installing')
         if not shutil.which('openssl'):sys.exit('OpenSSL required for initial TLS certificate generation')
         hostname=load().get('hostname','pinas')
         if not valid_hostname(hostname):hostname='pinas'
-        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','825',
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','365',
             '-keyout',str(TLS_KEY),'-out',str(TLS_CERT),'-subj',f'/CN={hostname}.local',
             '-addext',f'subjectAltName=DNS:{hostname}.local,DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+        generated_tls=True
+    if generated_tls:
+        marker=DATA/'tls-managed'
+        marker.write_text('pinas-self-signed-v1\n')
+        os.chmod(marker,0o600)
     for f,mode in ((TLS_CERT,0o644),(TLS_KEY,0o600)):
         os.chown(f,0 if f==TLS_CERT else __import__('pwd').getpwnam('pinas').pw_uid,0 if f==TLS_CERT else __import__('grp').getgrnam('pinas').gr_gid)
         os.chmod(f,mode)
@@ -129,7 +164,7 @@ def install(args):
     # mount namespace must permit those helpers to reach system configuration.
     service='''[Unit]\nDescription=PiNAS web dashboard\nAfter=network.target\n[Service]\nType=simple\nUser=pinas\nGroup=pinas\nExecStart=/usr/bin/python3 /opt/pinas/pinas.py --serve --tls --host %s --port %d\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=false\nProtectSystem=false\nReadWritePaths=/var/lib/pinas\nPrivateTmp=true\n[Install]\nWantedBy=multi-user.target\n'''%(bind_host,args.port)
     Path('/etc/systemd/system/pinas.service').write_text(service)
-    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
+    subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.path'],check=True);subprocess.run(['systemctl','enable','--now','pinas-hostname.timer'],check=True);subprocess.run(['systemctl','start','pinas-hostname.service'],check=True);subprocess.run(['systemctl','enable','pinas.service'],check=True);subprocess.run(['systemctl','restart','pinas.service'],check=True)
     print(f'PiNAS installed. For localhost access: https://127.0.0.1:{args.port} (self-signed certificate)')
     if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
     else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')

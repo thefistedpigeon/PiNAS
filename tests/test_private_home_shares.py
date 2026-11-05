@@ -65,8 +65,10 @@ class PrivateHomeShareTests(unittest.TestCase):
         self.assertIn("admin_password:password",PAGE)
 
     def test_installer_upgrade_updates_both_helpers(self):
-        self.assertGreaterEqual(INSTALLER.count("install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER"),2)
-        self.assertGreaterEqual(INSTALLER.count("install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER"),2)
+        self.assertIn("('pinas-nas-share',NAS_SHARE_HELPER",INSTALLER)
+        self.assertIn("install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER",INSTALLER)
+        self.assertIn("('pinas-nas-files',NAS_FILES_HELPER",INSTALLER)
+        self.assertIn("install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER",INSTALLER)
 
 if __name__=='__main__':
     unittest.main()

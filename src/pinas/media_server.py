@@ -6,7 +6,7 @@ def media_server_action(action,settings=None):
         raise ValueError('Unsupported media action')
     result=privileged_command('pinas-media-server',action,
         payload=_media_json.dumps(settings) if settings is not None else None,
-        timeout=240 if action=='install' else 200 if action=='grant' else 60)
+        timeout=240 if action=='install' else 420 if action=='grant' else 60)
     if result.returncode:raise RuntimeError((result.stderr.strip() or 'Media server helper failed')[-700:])
     return _media_json.loads(result.stdout)
 

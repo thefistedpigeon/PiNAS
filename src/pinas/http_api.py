@@ -1,6 +1,8 @@
 class Handler(BaseHTTPRequestHandler):
     server_version='PiNAS/'+VERSION
-    def log_message(self,fmt,*args): print('%s - %s'%(self.address_string(),fmt%args),file=sys.stderr)
+    def log_message(self,fmt,*args):
+        if self.path.split('?',1)[0] in ('/api/state','/api/pinas-build'):return
+        print('%s - %s'%(self.address_string(),fmt%args),file=sys.stderr)
     def send_headers(self,code=200,kind='application/json',cookie=None):
         self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY');self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
         if isinstance(self.connection,ssl.SSLSocket):self.send_header('Strict-Transport-Security','max-age=86400')
@@ -14,7 +16,59 @@ class Handler(BaseHTTPRequestHandler):
         SESSIONS.pop(token,None);return '',None
     def do_GET(self):
         path=urlparse(self.path).path
-        if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE.encode());return
+        if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE_BYTES);return
+        if path=='/api/job':
+            token,session=self.session()
+            if not session:self.json({'error':'Authentication required'},403);return
+            job_id=parse_qs(urlparse(self.path).query).get('id',[''])[0]
+            try:self.json(get_job(token,job_id))
+            except ValueError:self.json({'error':'Job not found'},404)
+            return
+        if path=='/api/file-download':
+            _,session=self.session()
+            if not session or session.get('role')!='user':
+                self.json({'error':'NAS user access required'},403);return
+            query=parse_qs(urlparse(self.path).query)
+            share=query.get('share',[''])[0];relative=query.get('path',[''])[0]
+            if not isinstance(share,str) or not share or not isinstance(relative,str) or not relative or len(relative)>1000:
+                self.json({'error':'Invalid download path'},400);return
+            command=['/usr/bin/sudo','-n','/usr/local/libexec/pinas-nas-files']
+            payload=json.dumps({'action':'download_stream','username':session['username'],
+                                'share':share,'path':relative}).encode()
+            process=None
+            sent=False
+            try:
+                process=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+                process.stdin.write(payload);process.stdin.close()
+                header=process.stdout.readline(1024)
+                if not header.endswith(b'\n'):raise ValueError('File download unavailable')
+                meta=json.loads(header)
+                length=meta.get('size')
+                if type(length) is not int or length<0:raise ValueError('Invalid download length')
+                filename=relative.rsplit('/',1)[-1]
+                self.send_response(200)
+                self.send_header('Content-Type','application/octet-stream')
+                self.send_header('Content-Disposition',"attachment; filename*=UTF-8''"+quote(filename,safe=''))
+                self.send_header('Content-Length',str(length))
+                self.send_header('Cache-Control','no-store')
+                self.send_header('X-Content-Type-Options','nosniff')
+                self.end_headers();sent=True
+                remaining=length
+                while remaining:
+                    block=process.stdout.read(min(256*1024,remaining))
+                    if not block:break
+                    self.wfile.write(block)
+                    remaining-=len(block)
+            except (OSError,ValueError,subprocess.SubprocessError) as exc:
+                if not sent:
+                    self.json({'error':'Unable to download file: '+str(exc)[:180]},503)
+            finally:
+                if process:
+                    if process.poll() is None:process.kill()
+                    try:process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:pass
+            return
         if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return
         if path=='/api/pinas-upgrade':
             _,session=self.session()
@@ -131,9 +185,14 @@ class Handler(BaseHTTPRequestHandler):
             if action not in ('shares','list','mkdir','delete','rename','move','copy','upload','download','upload_start','upload_chunk','upload_finish','upload_cancel','download_chunk'):
                 self.json({'error':'Unsupported file action'},400);return
             try:
-                result=nas_file_action(action,s['username'],share,relative,
-                    name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0),password=data.get('password') if action=='delete' else None)
-                self.json(result)
+                kwargs=dict(name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),
+                    token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0),
+                    password=data.get('password') if action=='delete' else None)
+                if action in ('copy','delete'):
+                    self.json(start_job(token,'file-'+action,
+                        lambda: nas_file_action(action,s['username'],share,relative,**kwargs)))
+                else:
+                    self.json(nas_file_action(action,s['username'],share,relative,**kwargs))
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},400)
             return
@@ -148,7 +207,10 @@ class Handler(BaseHTTPRequestHandler):
                     time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
             if action in ('save','grant','setup-library') and not isinstance(data.get('settings'),dict):
                 self.json({'error':'Invalid media settings'},400);return
-            try:self.json(media_server_action(action,data.get('settings') if action in ('save','grant','setup-library') else None))
+            try:
+                payload=data.get('settings') if action in ('save','grant','setup-library') else None
+                if action=='grant':self.json(start_job(token,'media-grant',media_server_action,action,payload))
+                else:self.json(media_server_action(action,payload))
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503)
             return
@@ -396,9 +458,11 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Incorrect administrator password'},403);return
             try:
-                result=privileged_command('pinas-nas-share','repair',payload=json.dumps({'name':name}),timeout=180)
-                if result.returncode:raise RuntimeError(result.stderr.strip()[-600:] or 'Repair failed')
-                self.json(json.loads(result.stdout));return
+                def repair():
+                    result=privileged_command('pinas-nas-share','repair',payload=json.dumps({'name':name}),timeout=420)
+                    if result.returncode:raise RuntimeError(result.stderr.strip()[-600:] or 'Repair failed')
+                    return json.loads(result.stdout)
+                self.json(start_job(token,'share-repair',repair));return
             except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503);return
         if path=='/api/edit-share':
@@ -508,7 +572,9 @@ class Handler(BaseHTTPRequestHandler):
             with SETUP_LOCK:
                 latest=load()
                 latest.update(settings)
-                latest['nas_display_names']=names
+                existing_names=latest.get('nas_display_names',{})
+                if not isinstance(existing_names,dict):existing_names={}
+                latest['nas_display_names']={**existing_names,**names}
                 save(latest)
             self.json({'ok':True,'settings':{key:latest.get(key) for key in BACKUP_SETTINGS},
                        'message':'Settings restored. Accounts, shares, disks and files were not modified.'});return
@@ -533,21 +599,74 @@ class Handler(BaseHTTPRequestHandler):
         save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
 
 HOSTNAME_HELPER = r"""#!/usr/bin/env python3
-import json, re, subprocess
+# Apply host identity and renew only PiNAS-generated self-signed TLS.
+import grp,json,os,pwd,re,shutil,subprocess,tempfile,time
 from pathlib import Path
+
+ROOT=Path('/var/lib/pinas')
+CERT=ROOT/'tls-cert.pem'
+KEY=ROOT/'tls-key.pem'
+MANAGED=ROOT/'tls-managed'
+
+def openssl(*args):
+    return subprocess.run(['/usr/bin/openssl',*args],capture_output=True,text=True,timeout=15)
+
+def refresh_tls(hostname):
+    if not CERT.exists() or not KEY.exists() or not Path('/usr/bin/openssl').is_file():return
+    if not MANAGED.exists():
+        # Existing certificates can be user-provided. Only adopt the exact
+        # historical PiNAS default self-signed certificate (CN=pinas.local).
+        info=openssl('x509','-in',str(CERT),'-noout','-subject','-issuer','-ext','subjectAltName')
+        if info.returncode:return
+        sections=info.stdout.splitlines()
+        subject=next((line for line in sections if line.startswith('subject=')),'')
+        issuer=next((line for line in sections if line.startswith('issuer=')),'')
+        if not (re.search(r'CN\s*=\s*pinas\.local\b',subject)
+                and re.search(r'CN\s*=\s*pinas\.local\b',issuer)
+                and 'DNS:pinas.local' in info.stdout):return
+        MANAGED.write_text('pinas-self-signed-v1\n')
+        os.chmod(MANAGED,0o600)
+    if MANAGED.read_text().strip()!='pinas-self-signed-v1':return
+    info=openssl('x509','-in',str(CERT),'-noout','-ext','subjectAltName')
+    valid=openssl('x509','-in',str(CERT),'-noout','-checkend','5184000')
+    if info.returncode==0 and 'DNS:'+hostname+'.local' in info.stdout and valid.returncode==0:return
+    temporary=Path(tempfile.mkdtemp(prefix='.pinas-tls-',dir=str(ROOT)))
+    try:
+        new_cert=temporary/'cert.pem';new_key=temporary/'key.pem'
+        command=['/usr/bin/openssl','req','-x509','-newkey','rsa:3072',
+                 '-sha256','-nodes','-days','365','-keyout',str(new_key),
+                 '-out',str(new_cert),'-subj','/CN='+hostname+'.local',
+                 '-addext','subjectAltName=DNS:'+hostname+'.local,DNS:localhost,IP:127.0.0.1']
+        subprocess.run(command,check=True,capture_output=True,timeout=45)
+        user=pwd.getpwnam('pinas').pw_uid;group=grp.getgrnam('pinas').gr_gid
+        os.chown(new_key,user,group);os.chmod(new_key,0o600)
+        os.chown(new_cert,0,0);os.chmod(new_cert,0o644)
+        # TLS context reads certificates at startup. Restart only after
+        # writing both files, scheduled separately from the hostname service.
+        os.replace(new_key,KEY)
+        os.replace(new_cert,CERT)
+    finally:
+        shutil.rmtree(temporary,ignore_errors=True)
+    runner='/usr/bin/systemd-run'
+    if Path(runner).is_file():
+        subprocess.run([runner,'--quiet','--unit=pinas-cert-refresh-'+str(int(time.time())),
+          '--on-active=10s','/usr/bin/systemctl','restart','pinas.service'],
+          check=True,capture_output=True,timeout=15)
+
 try:
-    path=Path('/var/lib/pinas/config.json')
-    if not path.exists():raise SystemExit(0)
-    cfg=json.loads(path.read_text())
-    hostname=cfg.get('hostname','')
-    if not hostname:raise SystemExit(0)
-    if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
-        raise ValueError('Invalid hostname')
-    current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
-    if current!=hostname:
-        subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+    path=ROOT/'config.json'
+    if path.exists():
+        cfg=json.loads(path.read_text())
+        hostname=cfg.get('hostname','')
+        if hostname:
+            if not isinstance(hostname,str) or not 1<=len(hostname)<=63 or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*',hostname):
+                raise ValueError('Invalid hostname')
+            current=subprocess.run(['hostname','-s'],capture_output=True,text=True,check=True).stdout.strip()
+            if current!=hostname:
+                subprocess.run(['/usr/bin/hostnamectl','set-hostname',hostname],check=True,timeout=15)
+            refresh_tls(hostname)
 except (OSError,ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
-    raise SystemExit('PiNAS hostname not applied: '+str(exc))
+    raise SystemExit('PiNAS hostname or managed TLS not applied: '+str(exc))
 """
 
 NAS_USER_HELPER = r"""#!/usr/bin/env python3
@@ -678,7 +797,7 @@ if __name__=='__main__':
 
 NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
 # Root-only share broker. Strict input validation and independent mount checks.
-import json, os, pathlib, pwd, re, subprocess, sys, tempfile
+import fcntl, json, os, pathlib, pwd, re, subprocess, sys, tempfile
 
 DB=pathlib.Path('/var/lib/pinas/shares.json')
 CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
@@ -1030,7 +1149,14 @@ def main():
     print(json.dumps({'ok':True,'name':name}))
 
 if __name__=='__main__':
-    try:main()
+    try:
+        # Serialize share database and Samba configuration transactions.
+        descriptor=os.open('/run/lock/pinas-share.lock',
+                           os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+        with os.fdopen(descriptor,'r+') as lock:
+            try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError:raise ValueError('Another share operation is in progress')
+            main()
     except Exception as exc:
         print(str(exc),file=sys.stderr);sys.exit(1)
 """
@@ -1194,6 +1320,19 @@ def main():
         # Hard-link is no-clobber and atomic on the same filesystem.
         os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
         print('{"ok":true}');return
+    if action=='download_stream':
+        if not target.is_file() or target.is_symlink() or not stat.S_ISREG(target.stat().st_mode):
+            raise ValueError('Only ordinary files may be downloaded')
+        with target.open('rb') as source:
+            size=os.fstat(source.fileno()).st_size
+            sys.stdout.buffer.write((json.dumps({'size':size})+'\n').encode())
+            sys.stdout.buffer.flush()
+            while True:
+                block=source.read(256*1024)
+                if not block:break
+                sys.stdout.buffer.write(block)
+            sys.stdout.buffer.flush()
+        return
     if action=='download_chunk':
         offset=q.get('offset');size=q.get('size')
         if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')
@@ -1203,14 +1342,22 @@ def main():
         print(json.dumps({'content':base64.b64encode(chunk).decode(),'total':total}));return
     if action=='list':
         if not target.is_dir():raise ValueError('Not a folder')
-        entries=[]
-        for child in sorted(target.iterdir(),key=lambda x:x.name.casefold()):
+        offset=q.get('offset',0)
+        if type(offset) is not int or offset<0 or offset>1000000:raise ValueError('Invalid folder page')
+        # Paginate at the helper boundary; the browser does not load all 10k
+        # photo thumbnails/entries in one JSON response.
+        visible=[]
+        for child in target.iterdir():
             if child.is_symlink() or child.name.startswith('.pinas-upload-'):continue
-            try:st=child.stat()
+            try:st=child.stat(follow_symlinks=False)
             except OSError:continue
-            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):entries.append({'name':child.name,'dir':stat.S_ISDIR(st.st_mode),'size':st.st_size})
-            if len(entries)>=1000:break
-        print(json.dumps({'entries':entries}));return
+            if stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode):
+                visible.append((child.name,stat.S_ISDIR(st.st_mode),st.st_size))
+        visible.sort(key=lambda x:x[0].casefold())
+        selected=visible[offset:offset+200]
+        entries=[{'name':name,'dir':is_dir,'size':size} for name,is_dir,size in selected]
+        next_offset=offset+len(entries) if offset+len(entries)<len(visible) else None
+        print(json.dumps({'entries':entries,'next_offset':next_offset,'total':len(visible)}));return
     if action=='mkdir':
         name=q.get('name','');dest=safe_path(root,'/'.join(filter(None,[relative,name])))
         if not isinstance(name,str) or not name or '/' in name or name in ('.','..'):raise ValueError('Invalid folder name')
@@ -1330,8 +1477,10 @@ def upgrade(source):
     try:
         with tempfile.TemporaryFile(mode='w+t',encoding='utf-8') as output:
             p=subprocess.run(['/usr/bin/apt-get','upgrade','-y','--no-remove',
+                              '-o','DPkg::Lock::Timeout=300',
                               '-o','Dpkg::Options::=--force-confold'],
-                             stdout=output,stderr=subprocess.STDOUT,timeout=3300,check=False)
+                             stdout=output,stderr=subprocess.STDOUT,timeout=3300,check=False,
+                             env={**os.environ,'DEBIAN_FRONTEND':'noninteractive','DEBIAN_PRIORITY':'critical'})
             code=p.returncode
             output.seek(0)
             tail=''

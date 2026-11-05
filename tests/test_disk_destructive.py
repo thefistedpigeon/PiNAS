@@ -36,7 +36,7 @@ def load_helper():
 class DiskDestructiveTests(unittest.TestCase):
     def test_helper_and_bundle_compile(self):
         compile(HELPER,'pinas-disk-erase','exec')
-        self.assertIn("VERSION='1.0.13'",CORE)
+        self.assertRegex(CORE,r"VERSION='1\.0\.\d+'")
 
     def test_web_requires_explicit_yes_and_current_password(self):
         self.assertIn('id="disk-danger-yes" type="checkbox" required',PAGE)
@@ -121,7 +121,7 @@ class DiskDestructiveTests(unittest.TestCase):
 
     def test_upgrade_installs_restricted_root_helper(self):
         self.assertIn("install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,[\"wipe\",\"format\"])",INSTALL)
-        self.assertIn("if Path('/usr/local/libexec/pinas-apt-index').is_file()",INSTALL)
+        self.assertIn("('pinas-apt-index',APT_INDEX_HELPER",INSTALL)
 
 if __name__=='__main__':
     unittest.main()

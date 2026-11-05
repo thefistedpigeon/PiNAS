@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """PiNAS lightweight NAS management interface (stdlib only)."""
-import ssl, ipaddress, re, argparse, base64, hashlib, hmac, json, os, secrets, shutil, socket, sqlite3, subprocess, sys, time, threading
+import ssl, re, argparse, base64, copy, hashlib, hmac, json, os, secrets, shutil, socket, sqlite3, subprocess, sys, time, threading
 from collections import deque
-from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse,parse_qs
 
-VERSION='1.0.13'
+VERSION='1.0.14'
 # A fresh identifier per service process lets browsers detect an update restart,
 # even when the application is updated without changing its version number.
 SERVER_INSTANCE=secrets.token_hex(16)
@@ -49,6 +48,42 @@ def login_succeeded(ip):
     with LOGIN_LOCK:LOGIN_ATTEMPTS.pop(ip,None)
 
 
+
+# Long file and ACL operations run outside the HTTP request. Ownership is
+# tied to the existing session ID, not a public result token.
+JOB_LOCK=threading.Lock()
+JOBS={}
+
+def start_job(session_token,action,callback,*args):
+    now=time.monotonic()
+    with JOB_LOCK:
+        for job_id,entry in list(JOBS.items()):
+            if now-entry['created']>3600 and not entry['running']:
+                JOBS.pop(job_id,None)
+        if sum(entry['running'] for entry in JOBS.values())>=2:
+            raise RuntimeError('Two long operations are already running')
+        if any(entry['running'] and entry['owner']==session_token for entry in JOBS.values()):
+            raise RuntimeError('An operation is already in progress for this session')
+        job_id=secrets.token_urlsafe(18)
+        JOBS[job_id]={'owner':session_token,'action':action,'created':now,
+                      'running':True,'result':None,'error':None}
+    def worker():
+        try:
+            result=callback(*args)
+            with JOB_LOCK:JOBS[job_id].update(result=result,running=False)
+        except Exception as exc:
+            with JOB_LOCK:JOBS[job_id].update(error=str(exc)[:700],running=False)
+    threading.Thread(target=worker,daemon=True,name='pinas-job-'+action).start()
+    return {'job_id':job_id,'running':True}
+
+def get_job(session_token,job_id):
+    with JOB_LOCK:
+        entry=JOBS.get(job_id)
+        if not entry or entry['owner']!=session_token:
+            raise ValueError('Job not found')
+        return {'running':entry['running'],'result':entry['result'],'error':entry['error'],
+                'action':entry['action']}
+
 UPDATE_LOCK=threading.Lock()
 UPDATE_STATUS={'running':False,'operation':'','last_check':None,'last_install':None,'error':'','output':''}
 
@@ -73,8 +108,24 @@ def update_history(limit=40):
     except (sqlite3.Error,OSError,ValueError):
         return []
 
-def package_updates():
-    """Read APT's existing indexes; no privileged commands or network calls."""
+APT_CACHE_LOCK=threading.Lock()
+APT_CACHE_AT=0.0
+APT_CACHE_RESULT={'packages':[]}
+
+def package_updates(force=False):
+    """Read APT metadata at most once a minute; never invoke APT while upgrading."""
+    global APT_CACHE_AT,APT_CACHE_RESULT
+    with APT_CACHE_LOCK:
+        with UPDATE_LOCK:
+            running=UPDATE_STATUS['running']
+        if running or (APT_CACHE_AT>0 and not force and time.monotonic()-APT_CACHE_AT<60):
+            return copy.deepcopy(APT_CACHE_RESULT)
+        result=_package_updates_uncached()
+        APT_CACHE_RESULT=result
+        APT_CACHE_AT=time.monotonic()
+        return copy.deepcopy(result)
+
+def _package_updates_uncached():
     try:
         proc=subprocess.run(['/usr/bin/apt','list','--upgradable'],capture_output=True,text=True,timeout=25,check=False,env={**os.environ,'LC_ALL':'C'})
         if proc.returncode:return {'error':(proc.stderr or 'Unable to read APT indexes')[-400:],'packages':[]}
@@ -111,6 +162,9 @@ def update_worker(operation='refresh'):
     try:
         proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index',operation],capture_output=True,text=True,timeout=3600 if operation=='upgrade' else 240,check=False)
         firmware=firmware_check() if operation=='refresh' else None
+        with APT_CACHE_LOCK:
+            global APT_CACHE_AT
+            APT_CACHE_AT=0
         with UPDATE_LOCK:
             if firmware is not None:UPDATE_STATUS['firmware']=firmware
             UPDATE_STATUS.update(running=False,operation=operation,**({'last_install':int(time.time())} if operation=='upgrade' else {'last_check':int(time.time())}),error='' if proc.returncode==0 else (proc.stderr or 'APT operation failed')[-800:],output=((proc.stdout or '')+'\n'+(proc.stderr or ''))[-3500:])
@@ -172,15 +226,38 @@ def read(path):
     try: return Path(path).read_text().strip()
     except OSError: return ''
 
+# A lightweight mtime/inode cache avoids reparsing multi-megabyte inline avatars
+# and backgrounds on each /api/state poll and CPU sample.
+CONFIG_LOCK=threading.RLock()
+CONFIG_CACHE_KEY=None
+CONFIG_CACHE_VALUE=None
+
 def load():
-    try: return json.loads(CONFIG.read_text())
-    except (OSError,ValueError): return {'theme':'light','font':12,'login_background':''}
+    global CONFIG_CACHE_KEY,CONFIG_CACHE_VALUE
+    with CONFIG_LOCK:
+        try:
+            st=CONFIG.stat()
+            key=(st.st_dev,st.st_ino,st.st_mtime_ns,st.st_size)
+            if key!=CONFIG_CACHE_KEY:
+                CONFIG_CACHE_VALUE=json.loads(CONFIG.read_text())
+                CONFIG_CACHE_KEY=key
+            return copy.deepcopy(CONFIG_CACHE_VALUE)
+        except (OSError,ValueError,TypeError):
+            return {'theme':'light','font':12,'login_background':''}
 
 def save(config):
-    DATA.mkdir(parents=True,exist_ok=True)
-    tmp=DATA/('config-'+secrets.token_hex(4)+'.tmp')
-    tmp.write_text(json.dumps(config,indent=2))
-    os.chmod(tmp,0o600); os.replace(tmp,CONFIG)
+    global CONFIG_CACHE_KEY,CONFIG_CACHE_VALUE
+    with CONFIG_LOCK:
+        DATA.mkdir(parents=True,exist_ok=True)
+        tmp=DATA/('config-'+secrets.token_hex(4)+'.tmp')
+        try:
+            tmp.write_text(json.dumps(config,indent=2))
+            os.chmod(tmp,0o600);os.replace(tmp,CONFIG)
+        finally:
+            tmp.unlink(missing_ok=True)
+        st=CONFIG.stat()
+        CONFIG_CACHE_KEY=(st.st_dev,st.st_ino,st.st_mtime_ns,st.st_size)
+        CONFIG_CACHE_VALUE=copy.deepcopy(config)
 
 # Only non-secret, device-local settings are portable. Linux/Samba users, credentials,
 # mounts and data volumes must be recovered separately, never modified by this import.
@@ -339,7 +416,7 @@ def configure_nas_mount(device):
 
 def nas_file_action(action, username, share='', path='', **extra):
     payload={'action':action,'username':username,'share':share,'path':path,**extra}
-    proc=privileged_command('pinas-nas-files',payload=json.dumps(payload),timeout=120)
+    proc=privileged_command('pinas-nas-files',payload=json.dumps(payload),timeout=720 if action in ('copy','delete') else 120)
     if proc.returncode:
         raise RuntimeError((proc.stderr.strip() or 'File operation failed')[-500:])
     return json.loads(proc.stdout)
@@ -488,7 +565,7 @@ def hardware_discovery():
             walk(root)
             volumes=[]
             def collect(node):
-                if node is not root and node.get('type') in ('part','crypt','lvm','raid','md'):
+                if node is not root and (node.get('type') in ('part','crypt','lvm','raid','md') or str(node.get('type') or '').startswith('raid')):
                     path=node.get('path') or ''
                     fs=node.get('fstype') or ''
                     uuid=node.get('uuid') or ''

@@ -1,71 +1,29 @@
-"""RC16.6 MiniDLNA integration checks (non-destructive).
-
-Run: python3 -m unittest discover -s tests -v
-"""
+"""Current MiniDLNA privileged helper regression tests."""
 import ast
-import pathlib
+from pathlib import Path
 import unittest
 
-ROOT=pathlib.Path(__file__).resolve().parents[1]
-SOURCE='\n'.join((ROOT/'src'/'pinas'/name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py'))
-TREE=ast.parse(SOURCE)
-EMBEDDED={}
-for node in TREE.body:
-    if isinstance(node,ast.Assign):
-        for target in node.targets:
-            if isinstance(target,ast.Name) and target.id in ('NAS_MINIDLNA_HELPER','PAGE'):
-                EMBEDDED[target.id]=ast.literal_eval(node.value)
-
-@unittest.skipUnless('NAS_MINIDLNA_HELPER' in EMBEDDED, 'MiniDLNA helper not present in this source branch')
+ROOT=Path(__file__).resolve().parents[1]
+MEDIA=(ROOT/'src/pinas/media_server.py').read_text()
+API=(ROOT/'src/pinas/http_api.py').read_text()
+UI=(ROOT/'src/pinas/web_ui.py').read_text()
+INSTALL=(ROOT/'src/pinas/installer.py').read_text()
+def literal(name):
+    for node in ast.parse(MEDIA).body:
+        if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in node.targets):
+            return ast.literal_eval(node.value)
+    raise AssertionError('Missing '+name)
 class MiniDLNATests(unittest.TestCase):
-    def test_helper_compiles(self):
-        compile(EMBEDDED['NAS_MINIDLNA_HELPER'],'pinas-minidlna','exec')
-
-    def test_api_and_sudo_broker(self):
-        self.assertIn("if path=='/api/minidlna':",SOURCE)
-        self.assertIn("admin_record(cfg,s['username'])",SOURCE)
-        self.assertIn('pinas-minidlna status, /usr/local/libexec/pinas-minidlna action',SOURCE)
-        self.assertIn("os.chmod(media_helper,0o700)",SOURCE)
-
-    def test_configuration_is_allowlisted(self):
-        helper=EMBEDDED['NAS_MINIDLNA_HELPER']
-        self.assertIn("('all','audio','video','pictures')",helper)
-        self.assertIn("share not in choices",helper)
-        self.assertIn("managed_shares()",helper)
-        self.assertIn("port not",helper) if False else None
-        self.assertIn("not 1024<=port<=65535",helper)
-        self.assertIn("not 60<=interval<=3600",helper)
-        self.assertIn("backups=CONF.parent/",helper)
-        self.assertIn("atomic(CONF,previous)",helper)
-
-    def test_media_access_opt_in(self):
-        helper=EMBEDDED['NAS_MINIDLNA_HELPER']
-        self.assertIn("grant=data.get('grant_access',False)",helper)
-        self.assertIn("'/usr/bin/find',root,'-xdev'",helper)
-        self.assertIn("u:minidlna:r--",helper)
-        self.assertIn("d:u:minidlna:rx",helper)
-
-    def test_noninteractive_install_and_diagnostics(self):
-        helper=EMBEDDED['NAS_MINIDLNA_HELPER']
-        self.assertIn("'DEBIAN_FRONTEND':'noninteractive'",helper)
-        self.assertIn("'Dpkg::Use-Pty=0'",helper)
-        self.assertIn("p.stdout.strip(),p.stderr.strip()",helper)
-        self.assertIn("[-5000:]",helper)
-
-    def test_media_card_icon(self):
-        page=EMBEDDED['PAGE']
-        self.assertIn('class="app-card-title"',page)
-        self.assertIn('viewBox="0 0 24 24"',page)
-        self.assertIn('.app-card-title{display:flex;align-items:center;gap:12px}',page)
-
-    def test_ui_install_and_configuration(self):
-        page=EMBEDDED['PAGE']
-        self.assertIn("function openMiniDLNA()",page)
-        self.assertIn('id="open-minidlna"',page)
-        self.assertIn("Install MiniDLNA",page)
-        self.assertIn("Grant MiniDLNA read-only",page)
-        self.assertIn("command('configure'",page)
-        self.assertIn("data-dlna",page)
-
-if __name__=='__main__':
-    unittest.main()
+    def test_real_helper_compiles(self):
+        compile(literal('MEDIA_SERVER_HELPER'),'pinas-media-server','exec')
+    def test_command_and_media_folder_validation(self):
+        helper=literal('MEDIA_SERVER_HELPER')
+        for token in ('def validate(data):','safe_path(', 'setup_library(', 'setfacl','media_dir'):
+            with self.subTest(token=token):self.assertIn(token,helper)
+        self.assertNotIn("shell=True",helper)
+    def test_admin_api_and_optional_installation(self):
+        self.assertIn("if path=='/api/media-server':",API)
+        self.assertIn("verify(password,(admin_record(cfg,s['username'])",API)
+        self.assertIn("install_privileged_helper('pinas-media-server'",INSTALL)
+        self.assertIn("items.push('Media Server')",UI)
+if __name__=='__main__':unittest.main()

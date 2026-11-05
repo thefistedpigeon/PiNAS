@@ -56,7 +56,8 @@ class StorageAdoptionRegression(unittest.TestCase):
 
     def test_web_update_refreshes_privileged_adoption_helper(self):
         expand=INSTALLER[:INSTALLER.index('def install_privileged_helper(')]
-        self.assertIn("install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,[\"adopt\"])",expand)
+        self.assertIn("('pinas-nas-storage',NAS_STORAGE_HELPER,[\"adopt\"])",expand)
+        self.assertIn("for name,source,allowed in specifications:",expand)
 
 if __name__=='__main__':
     unittest.main()
