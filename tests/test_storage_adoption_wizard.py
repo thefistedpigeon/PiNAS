@@ -24,7 +24,7 @@ class StorageAdoptionRegression(unittest.TestCase):
         exec(compile(ADOPT,'pinas-nas-storage','exec'),ns)
         fake=subprocess.CompletedProcess(args=['mount','/mnt/test'],returncode=32,stdout='',stderr='')
         with mock.patch.object(ns['subprocess'],'run',return_value=fake):
-            with self.assertRaisesRegex(ValueError,r'mount failed \\(exit 32\\):'):
+            with self.assertRaisesRegex(ValueError,r'mount failed .exit 32.:'):
                 ns['run']('mount','/mnt/test')
 
     def test_optional_boot_mounts_are_not_fatal(self):
