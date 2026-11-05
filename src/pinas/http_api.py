@@ -17,6 +17,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE_BYTES);return
+        if path=='/api/job':
+            token,session=self.session()
+            if not session:self.json({'error':'Authentication required'},403);return
+            job_id=parse_qs(urlparse(self.path).query).get('id',[''])[0]
+            try:self.json(get_job(token,job_id))
+            except ValueError:self.json({'error':'Job not found'},404)
+            return
         if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return
         if path=='/api/pinas-upgrade':
             _,session=self.session()
@@ -133,9 +140,14 @@ class Handler(BaseHTTPRequestHandler):
             if action not in ('shares','list','mkdir','delete','rename','move','copy','upload','download','upload_start','upload_chunk','upload_finish','upload_cancel','download_chunk'):
                 self.json({'error':'Unsupported file action'},400);return
             try:
-                result=nas_file_action(action,s['username'],share,relative,
-                    name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0),password=data.get('password') if action=='delete' else None)
-                self.json(result)
+                kwargs=dict(name=data.get('name',''),content=data.get('content',''),dest=data.get('dest',''),
+                    token=data.get('token',''),offset=data.get('offset',0),size=data.get('size',0),
+                    password=data.get('password') if action=='delete' else None)
+                if action in ('copy','delete'):
+                    self.json(start_job(token,'file-'+action,
+                        lambda: nas_file_action(action,s['username'],share,relative,**kwargs)))
+                else:
+                    self.json(nas_file_action(action,s['username'],share,relative,**kwargs))
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},400)
             return
@@ -150,7 +162,10 @@ class Handler(BaseHTTPRequestHandler):
                     time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
             if action in ('save','grant','setup-library') and not isinstance(data.get('settings'),dict):
                 self.json({'error':'Invalid media settings'},400);return
-            try:self.json(media_server_action(action,data.get('settings') if action in ('save','grant','setup-library') else None))
+            try:
+                payload=data.get('settings') if action in ('save','grant','setup-library') else None
+                if action=='grant':self.json(start_job(token,'media-grant',media_server_action,action,payload))
+                else:self.json(media_server_action(action,payload))
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503)
             return
@@ -398,9 +413,11 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                 time.sleep(.35);self.json({'error':'Incorrect administrator password'},403);return
             try:
-                result=privileged_command('pinas-nas-share','repair',payload=json.dumps({'name':name}),timeout=180)
-                if result.returncode:raise RuntimeError(result.stderr.strip()[-600:] or 'Repair failed')
-                self.json(json.loads(result.stdout));return
+                def repair():
+                    result=privileged_command('pinas-nas-share','repair',payload=json.dumps({'name':name}),timeout=420)
+                    if result.returncode:raise RuntimeError(result.stderr.strip()[-600:] or 'Repair failed')
+                    return json.loads(result.stdout)
+                self.json(start_job(token,'share-repair',repair));return
             except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503);return
         if path=='/api/edit-share':

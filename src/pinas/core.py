@@ -4,7 +4,7 @@ import ssl, re, argparse, base64, copy, hashlib, hmac, json, os, secrets, shutil
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse,parse_qs
 
 VERSION='1.0.14'
 # A fresh identifier per service process lets browsers detect an update restart,
@@ -47,6 +47,42 @@ def login_failed(ip):
 def login_succeeded(ip):
     with LOGIN_LOCK:LOGIN_ATTEMPTS.pop(ip,None)
 
+
+
+# Long file and ACL operations run outside the HTTP request. Ownership is
+# tied to the existing session ID, not a public result token.
+JOB_LOCK=threading.Lock()
+JOBS={}
+
+def start_job(session_token,action,callback,*args):
+    now=time.monotonic()
+    with JOB_LOCK:
+        for job_id,entry in list(JOBS.items()):
+            if now-entry['created']>3600 and not entry['running']:
+                JOBS.pop(job_id,None)
+        if sum(entry['running'] for entry in JOBS.values())>=2:
+            raise RuntimeError('Two long operations are already running')
+        if any(entry['running'] and entry['owner']==session_token for entry in JOBS.values()):
+            raise RuntimeError('An operation is already in progress for this session')
+        job_id=secrets.token_urlsafe(18)
+        JOBS[job_id]={'owner':session_token,'action':action,'created':now,
+                      'running':True,'result':None,'error':None}
+    def worker():
+        try:
+            result=callback(*args)
+            with JOB_LOCK:JOBS[job_id].update(result=result,running=False)
+        except Exception as exc:
+            with JOB_LOCK:JOBS[job_id].update(error=str(exc)[:700],running=False)
+    threading.Thread(target=worker,daemon=True,name='pinas-job-'+action).start()
+    return {'job_id':job_id,'running':True}
+
+def get_job(session_token,job_id):
+    with JOB_LOCK:
+        entry=JOBS.get(job_id)
+        if not entry or entry['owner']!=session_token:
+            raise ValueError('Job not found')
+        return {'running':entry['running'],'result':entry['result'],'error':entry['error'],
+                'action':entry['action']}
 
 UPDATE_LOCK=threading.Lock()
 UPDATE_STATUS={'running':False,'operation':'','last_check':None,'last_install':None,'error':'','output':''}
@@ -380,7 +416,7 @@ def configure_nas_mount(device):
 
 def nas_file_action(action, username, share='', path='', **extra):
     payload={'action':action,'username':username,'share':share,'path':path,**extra}
-    proc=privileged_command('pinas-nas-files',payload=json.dumps(payload),timeout=120)
+    proc=privileged_command('pinas-nas-files',payload=json.dumps(payload),timeout=720 if action in ('copy','delete') else 120)
     if proc.returncode:
         raise RuntimeError((proc.stderr.strip() or 'File operation failed')[-500:])
     return json.loads(proc.stdout)
