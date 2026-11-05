@@ -122,7 +122,7 @@ def erase_signatures(items):
     # wipefs itself asks the kernel to re-read a changed partition table.
     # Supplying partitions before their parent in one call avoids redundant
     # BLKRRPART calls, which can return EBUSY after a successful signature wipe.
-    run('wipefs','--all','--force',*targets,timeout=90)
+    run('wipefs','--lock=yes','--all','--force',*targets,timeout=90)
 
 def main():
     if os.geteuid()!=0 or len(sys.argv)!=2 or sys.argv[1] not in ('wipe','format'):
