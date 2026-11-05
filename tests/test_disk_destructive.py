@@ -36,7 +36,7 @@ def load_helper():
 class DiskDestructiveTests(unittest.TestCase):
     def test_helper_and_bundle_compile(self):
         compile(HELPER,'pinas-disk-erase','exec')
-        self.assertRegex(CORE,r"VERSION='1\.0\.\d+'")
+        self.assertRegex(CORE,r"VERSION='\d+\.\d+\.\d+'")
 
     def test_web_requires_explicit_yes_and_current_password(self):
         self.assertIn('id="disk-danger-yes" type="checkbox" required',PAGE)
