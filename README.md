@@ -2,13 +2,13 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Release status:** PiNAS v1.0.13 is the current code baseline. The v1.0.14 hardening changes are under review. Keep independent backups of important files; destructive storage operations are irreversible. Versioned release candidates should be tested on a spare Pi before promotion.
+> **Current release: PiNAS v1.1.0.** This release introduces the optional MiniDLNA Media Server, guided media-library setup and browser media uploads, alongside storage diagnostics and administration hardening. PiNAS remains lightweight and NAS-focused. Keep independent backups; destructive storage operations are irreversible.
 
 ## Features
 
 ### Overview
 - Per-disk storage usage bars showing disk name, used and available space. System/boot storage is excluded from NAS disk listings.
-- Per-drive SMART health status and temperature alongside the Overview storage bars, checked when Overview opens and manually refreshed on demand; unsupported adapters show unavailable values.
+- Per-drive SMART health status and temperature alongside the Overview storage bars, checked **on demand**; standby drives are not deliberately woken and unsupported adapters are explained.
 - Compact Disks / Shares / Users counters with links to their respective pages.
 - CPU activity history with configurable sampling and history length.
 - Memory usage and CPU-temperature doughnut charts.
@@ -25,6 +25,7 @@
 - Revalidate the selected filesystem against current hardware before a privileged storage adoption operation.
 - Discover attached drives and supported **ext4, XFS and Btrfs** filesystems, including additional Btrfs detection where required.
 - Inspect mounts and adopt existing formatted drives, with persistent mounting and applicable filesystem options.
+- Run a manual **File Type Scan** separately for each mounted PiNAS data volume on Storage. The scan classifies allocated file sizes as Video, Pictures, Music and Other / filesystem, with a free-space segment; it never opens file contents.
 - Access RAID management and discovery using `mdadm` when supported by the hardware and connected drives.
 - Storage operations with confirmation and appropriate administrative safeguards.
 
@@ -54,7 +55,15 @@ A wider Settings popup with independently expandable sections, **collapsed by de
 - **Administration:** Reset PiNAS-managed SMB configuration with safeguards.
 - **Update PiNAS:** Upload a standalone PiNAS Python release to update the application.
 
+### Media Server (optional MiniDLNA)
+- Install, configure and control the lightweight MiniDLNA/ReadyMedia service only when needed. No containers or heavyweight media-management stack.
+- Create a ready-to-use `pinas-media` library on a mounted NAS disk with **Movies**, **Television**, **Music** and **Pictures** folders.
+- Configure DLNA folders, grant the service read/traverse ACL access, restart indexing or rebuild the media database.
+- Upload supported videos, music, images and subtitles directly into a configured media folder through the administrator WebUI. Transfers use small chunks, progress reporting and cancellation; completed files receive MiniDLNA read access. Existing filenames are not overwritten.
+- DLNA discovery is intended for a **trusted local network**. DLNA does not enforce individual Samba-user permissions; only add folders you intend to make available to DLNA clients.
+
 ### Security and administration
+- Restart or shut down PiNAS from the administrator header after password confirmation. Device power actions interrupt active NAS connections.
 - HTTPS web access (with a locally generated self-signed certificate by default).
 - Administrator authentication and password confirmation for protected operations.
 - Privileged helper commands restricted to supported operations.
@@ -78,7 +87,7 @@ PiNAS uses **HTTPS port 8765 by default**. Open `https://<pi-ip-address>:8765` i
 
 The installer configures a systemd service and extracts its bundled source sections under `/opt/pinas/modules/`. Existing configuration and NAS data are intended to be preserved during application updates.
 
-### Configuration backup and restore (v1.0.4 candidate)
+### Configuration backup and restore
 
 In **Settings → Configuration backup & recovery**, an administrator can export a JSON manifest after re-entering their password. It contains portable interface/monitoring/security preferences, account display names, and a read-only inventory of NAS users and shares. Administrator credentials, SMB passwords, certificates, login backgrounds and file contents are excluded.
 
@@ -185,6 +194,7 @@ See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The
 
 ## Recent releases
 
+- **v1.1.0 (current):** [Official release notes](docs/releases/v1.1.0.md) — optional MiniDLNA Media Server, guided library setup, administrator browser uploads, on-demand per-disk file-type scans, SMART diagnostics, power controls and UI consistency.
 - **v1.0.8 (historical):** [Official release notes](docs/releases/v1.0.8.md) — update history and service health, final button consistency, and guarded Wipe Disk / Format Disk.
 
 - **v1.0.6:** [Official release notes](docs/releases/v1.0.6.md) — storage safety and recovery, Overview disk health/temperature, standardised buttons and improved automatic browser reload after an application update.
@@ -201,10 +211,8 @@ The [v1.0.7 update history and service-health notes](docs/releases/v1.0.7.md) de
 
 See the [v1.0.8 Wipe Disk and Format Disk notes](docs/releases/v1.0.8.md) for supported actions, safety limitations, and disposable-disk testing guidance.
 
-## Current PiNAS module layout (v1.0.13+)
+## Current PiNAS module layout (v1.1.0)
 
 The standalone `pinas.py` is generated from seven ordered source sections: `core.py`, `web_ui.py`, `storage_breakdown.py`, `http_api.py`, `privileged_helpers.py`, `media_server.py`, and `installer.py`. The sections execute in a shared namespace for portable deployment; changes require rebuilding with `python3 tools/build_release.py`. The `--check` command verifies the full generated output.
 
-**Media Server:** MiniDLNA is optional. A mounted PiNAS disk can be used to create a `pinas-media` directory with Movies, Television, Music and Pictures libraries. DLNA access is separate from SMB permissions. The Overview classifies video, picture, music and other disk usage on demand, while existing SMB folders inherit ACL policies.
-
-**Development:** v1.0.14 focuses on configuration and update efficiency, safer privileged operations, UX improvements and regression coverage. See `docs/releases/v1.0.14.md` for the candidate checklist.
+**Media Server:** MiniDLNA remains optional. Media folders live on managed, mounted PiNAS data disks; the administrator can upload media from the browser. DLNA access is separate from SMB permissions. Each disk's **File Type Scan** is started manually from Storage; Overview displays a simpler usage bar. See [v1.1.0 release notes](docs/releases/v1.1.0.md).
