@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION='1.0.9'
+VERSION='1.0.10'
 # A fresh identifier per service process lets browsers detect an update restart,
 # even when the application is updated without changing its version number.
 SERVER_INSTANCE=secrets.token_hex(16)
@@ -317,6 +317,13 @@ def edit_nas_share(name,new_name,access,public=False,public_write=False):
     proc=privileged_command('pinas-nas-share','edit',payload=json.dumps({'name':name,'new_name':new_name,'access':access,'public':public,'public_write':public_write}))
     if proc.returncode:
         raise RuntimeError('Share edit failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-850:])
+
+def migrate_nas_share(name):
+    """Explicitly migrate a PiNAS-managed legacy share without overwriting data."""
+    proc=privileged_command('pinas-nas-share','migrate',payload=json.dumps({'name':name}),timeout=60)
+    if proc.returncode:
+        raise RuntimeError('Share migration failed: '+(proc.stderr.strip() or 'Privileged migration helper failed')[-850:])
+    return json.loads(proc.stdout)
 
 def delete_nas_share(name):
     proc=privileged_command('pinas-nas-share','delete',payload=json.dumps({'name':name}))
