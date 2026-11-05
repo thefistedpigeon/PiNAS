@@ -51,6 +51,11 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 #ms-form h3{margin-top:22px}
 #ms-folders{width:100%;min-height:110px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--radius-sm);font:inherit;padding:12px;resize:vertical}
 .media-picker{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}.media-picker .field{flex:1 1 220px}.media-picker .btn{margin-bottom:12px}
+.media-setup{border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px;margin:18px 0;background:var(--soft)}
+.media-setup h3{margin:0 0 6px}
+.media-fields .hint{display:block;line-height:1.5;margin-top:5px}
+.media-fields .hint em{font-style:normal;color:var(--muted)}
+.media-checkbox .hint{font-weight:normal}
 </style></head><body><div id="app"></div><script>
 const app=document.getElementById('app');let info={},cfg={},cpu={},page='Overview',csrf='',role='admin',username='',displayName='',refreshTimer=null,lastNavRect=null;const nav=['Overview','Storage','Users','Shares'];
 // Navigation is derived from actual mounted NAS volumes, not a setup flag.
@@ -210,6 +215,43 @@ const MEDIA_FIELDS=[
  ['enable_thumbnail','Generate thumbnails (if compiled in)','checkbox'],['thumbnail_width','Thumbnail width','number'],
  ['thumbnail_quality','Thumbnail quality','number'],['enable_thumbnail_filmstrip','Thumbnail filmstrip','checkbox']
 ];
+
+const MEDIA_DOC={
+ friendly_name:['Name advertised to DLNA devices. Default is the host name and service account.','PiNAS'],
+ port:['HTTP streaming port. Common Debian package setting: 8200.','8200'],
+ network_interface:['Leave blank to use all available network interfaces, e.g. eth0 or wlan0.','All interfaces'],
+ notify_interval:['Seconds between discovery announcements. MiniDLNA default: 895.','895'],
+ max_connections:['Maximum simultaneous client connections. Recommended starting value: 50.','50'],
+ model_name:['Optional model description reported to players. Blank uses MiniDLNA built-in default.','Windows Media Connect compatible (MiniDLNA)'],
+ model_number:['Leave blank to use the MiniDLNA version.','MiniDLNA version'],
+ serial:['Leave blank to use the automatically detected identifier.','Automatic'],
+ uuid:['Optional UPnP identifier. Leave blank unless you need a fixed device identity.','Automatic'],
+ presentation_url:['Optional HTTP URL shown to clients; normally leave blank.','http://pinas.local:8200'],
+ album_art_names:['Slash-delimited names of album cover files, e.g. Cover.jpg/Folder.jpg.','Cover.jpg/Folder.jpg'],
+ force_sort_criteria:['Optional UPnP sort order. Leave empty to respect the client request.','Client-controlled'],
+ log_level:['Syntax: general=warn or scanner,metadata=info. Levels: off, fatal, error, warn, info, debug.','general,artwork,database,inotify,scanner,metadata,http,ssdp,tivo=warn'],
+ root_container:['Choose which container clients open first. Default is standard hierarchy.','.'],
+ tivo_discovery:['Bonjour (default) or legacy beacon discovery. Normally leave at default.','bonjour'],
+ inotify:['Automatically detect new media; recommended for most NAS libraries.','yes'],
+ strict_dlna:['Strict compliance may add image conversion overhead. Default: no.','no'],
+ merge_media_dirs:['Merge all folders into a single root listing. Default: no.','no'],
+ enable_subtitles:['Expose external subtitle files when supported by the package build.','yes'],
+ enable_tivo:['TiVo compatibility is normally unnecessary.','no'],
+ enable_thumbnail:['Thumbnail generation requires a MiniDLNA build that supports it.','no'],
+ thumbnail_width:['Width in pixels; accepted range 64–1024. Leave empty for package default.','Automatic'],
+ thumbnail_quality:['Quality level 1–10. Leave empty for package default.','Automatic'],
+ enable_thumbnail_filmstrip:['Filmstrip thumbnails require package build support.','no']
+};
+const MEDIA_SELECTS={
+ root_container:[['','Default (standard hierarchy)'],['.','Standard hierarchy (.)'],['B','Browse folders (B)'],['M','Music (M)'],['V','Video (V)'],['P','Pictures (P)']],
+ tivo_discovery:[['','Default (Bonjour)'],['bonjour','Bonjour'],['beacon','Legacy beacon']]
+};
+const MEDIA_NUMERIC={port:[1024,65535],notify_interval:[30,86400],max_connections:[1,100],thumbnail_width:[64,1024],thumbnail_quality:[1,10]};
+const mediaLibraryVolumes=()=>disks().flatMap(d=>(d.volumes||[])
+  .filter(v=>v.fs&&v.persistent&&!v.read_only)
+  .flatMap(v=>(v.mounts||[]).filter(m=>/^\/mnt\/pinas\/[^/]+$/.test(m))
+   .map(m=>({mount:m,label:(d.model||d.name||'Disk')+' · '+(v.fs||'Filesystem')+' · '+m}))));
+let mediaSuccess='';
 let mediaBusy=false;
 async function loadMediaServer(){
  const panel=document.getElementById('media-server-panel');if(!panel)return;
@@ -221,7 +263,21 @@ async function loadMediaServer(){
    panel.querySelector('#ms-install').onclick=()=>mediaAction('install',true);
    return;
   }
-  const opts=result.settings||{},defaultValue={friendly_name:info.hostname||'PiNAS',port:8200,notify_interval:895,max_connections:50,inotify:'yes',enable_subtitles:'yes'};
+  const opts=result.settings||{},defaultValue={
+   friendly_name:info.hostname||'PiNAS',port:'8200',notify_interval:'895',
+   max_connections:'50',root_container:'.',tivo_discovery:'bonjour',
+   inotify:'yes',enable_subtitles:'yes',strict_dlna:'no',merge_media_dirs:'no',
+   enable_tivo:'no',enable_thumbnail:'no',enable_thumbnail_filmstrip:'no'
+  };
+  const volumes=mediaLibraryVolumes(),hasFolders=Boolean((opts.media_dir||[]).length);
+  const options=volumes.map(v=>'<option value="'+esc(v.mount)+'">'+esc(v.label)+'</option>').join('');
+  const setupPanel='<section class="media-setup"><h3>'+(hasFolders?'Standard media library':'Complete media server setup')+'</h3>'
+   +'<p>'+(hasFolders?'Create an additional standard library on your preferred disk. This replaces the current MiniDLNA media folder list, but does not remove or alter existing files.':
+     'Choose a configured storage disk to create a ready-to-use library with Movies, Television, Music and Pictures folders.')+'</p>'
+   +'<div class="media-picker"><label class="field">Storage disk<select id="ms-library-volume"><option value="">Choose a mounted disk…</option>'+options+'</select></label>'
+   +'<button type="button" class="btn" id="ms-library-setup" '+(!volumes.length?'disabled':'')+'>Create media library</button></div>'
+   +'<p class="hint">Creates /mnt/pinas/&lt;disk-id&gt;/pinas-media/ with four subfolders and configures MiniDLNA to scan them. Existing media files are never deleted. The folders are readable by MiniDLNA but are not automatically shared for SMB uploads.</p>'
+   +(!volumes.length?'<p class="hint">Configure and persistently mount a data disk in Storage first.</p>':'')+'</section>';
   const shareOptions=(info.share_details||[]).filter(s=>typeof s.folder==='string'&&s.folder.startsWith('/mnt/pinas/')).map(s=>
     '<option value="'+esc(s.folder)+'">'+esc(s.name||s.folder)+'</option>').join('');
   const folderActions=(opts.media_dir||[]).map(item=>{
@@ -230,11 +286,19 @@ async function loadMediaServer(){
   }).join('')||'<p class="hint">Save at least one media folder to configure its read access.</p>';
   const fields=MEDIA_FIELDS.map(([key,label,type])=>{
    const val=opts[key]??defaultValue[key]??'';
-   if(type==='checkbox')return '<label class="media-checkbox"><input type="checkbox" data-ms-key="'+key+'" '+(val==='yes'?'checked':'')+'><span>'+esc(label)+'</span></label>';
-   return '<label class="field">'+esc(label)+'<input data-ms-key="'+key+'" type="'+type+'" value="'+esc(val)+'" maxlength="180"></label>';
+   const doc=MEDIA_DOC[key]||['',''];
+   const hint='<span class="hint">'+esc(doc[0])+' <em>Default: '+esc(doc[1])+'</em></span>';
+   if(type==='checkbox')return '<label class="media-checkbox"><input type="checkbox" data-ms-key="'+key+'" '+(val==='yes'?'checked':'')+'><span>'+esc(label)+hint+'</span></label>';
+   if(MEDIA_SELECTS[key]){
+    const choices=MEDIA_SELECTS[key].map(([v,name])=>'<option value="'+esc(v)+'" '+(val===v?'selected':'')+'>'+esc(name)+'</option>').join('');
+    return '<label class="field">'+esc(label)+'<select data-ms-key="'+key+'">'+choices+'</select>'+hint+'</label>';
+   }
+   const limits=MEDIA_NUMERIC[key],attrs=limits?' min="'+limits[0]+'" max="'+limits[1]+'" step="1"':'';
+   return '<label class="field">'+esc(label)+'<input data-ms-key="'+key+'" type="'+type+'" value="'+esc(val)+'" placeholder="'+esc(doc[1])+'" maxlength="180"'+attrs+'>'+hint+'</label>';
   }).join('');
   panel.innerHTML='<div class="line"><strong>Service status</strong><span class="pill '+(result.state==='active'?'good':'')+'">'+esc(result.state==='active'?'Running':result.state)+'</span></div>'
    +'<div class="media-actions"><button class="btn outline" data-media-action="start">Start</button><button class="btn outline" data-media-action="stop">Stop</button><button class="btn outline" data-media-action="restart">Restart</button><button class="btn outline" data-media-action="rescan">Restart scan</button><button class="btn outline" data-media-action="rebuild">Rebuild library</button></div>'
+   +setupPanel+(mediaSuccess?'<p class="hint" role="status">'+esc(mediaSuccess)+'</p>':'')
    +'<form id="ms-form"><h3>Media folders</h3><p class="hint">One full folder path per line under /mnt/pinas/. Optionally prefix A, V or P followed by a comma for audio, video or photos.</p>'
    +'<div class="media-picker"><label class="field">Choose an existing NAS share<select id="ms-preset-share"><option value="">Select a share…</option>'+shareOptions+'</select></label><label class="field">Media type<select id="ms-preset-type"><option value="">All media</option><option value="A">Audio</option><option value="V">Video</option><option value="P">Photos</option></select></label><button type="button" class="btn outline" id="ms-preset-add">Add folder</button></div>'
    +'<label class="field">Shared folders<textarea id="ms-folders" rows="5" placeholder="V,/mnt/pinas/UUID/pinas-shares/Movies">'+esc((opts.media_dir||[]).join('\n'))+'</textarea></label>'
@@ -245,6 +309,12 @@ async function loadMediaServer(){
    button.onclick=()=>mediaAction(button.dataset.mediaAction,false);
   });
   panel.querySelectorAll('[data-media-grant]').forEach(button=>button.onclick=()=>mediaAction('grant',true,{path:button.dataset.mediaGrant}));
+  panel.querySelector('#ms-library-setup').onclick=async()=>{
+   const target=panel.querySelector('#ms-library-volume').value;
+   if(!target)return;
+   if(hasFolders&&!confirm('Replace the configured MiniDLNA media folders with a standard library on the selected disk? Existing media files will remain untouched.'))return;
+   await mediaAction('setup-library',true,{volume:target});
+  };
   panel.querySelector('#ms-preset-add').onclick=()=>{
    const folder=panel.querySelector('#ms-preset-share').value,type=panel.querySelector('#ms-preset-type').value;
    if(!folder)return;
@@ -256,7 +326,8 @@ async function loadMediaServer(){
   panel.querySelector('#ms-form').onsubmit=async event=>{
    event.preventDefault();
    const settings={};
-   panel.querySelectorAll('[data-ms-key]').forEach(el=>{settings[el.dataset.msKey]=el.type==='checkbox'?el.checked:el.type==='number'?Number(el.value):el.value.trim()});
+   panel.querySelectorAll('[data-ms-key]').forEach(el=>{settings[el.dataset.msKey]=el.type==='checkbox'?el.checked:el.type==='number'?(el.value.trim()===''?null:Number(el.value)):el.value.trim()});
+   Object.keys(settings).forEach(key=>{if(settings[key]===null)delete settings[key]});
    settings.media_dir=panel.querySelector('#ms-folders').value.split('\n').map(x=>x.trim()).filter(Boolean).map(value=>{
     const match=value.match(/^([AVP]),(\/.*)$/);
     return {type:match?match[1]:'',path:match?match[2]:value};
@@ -270,12 +341,13 @@ async function mediaAction(action,needsPassword,settings){
  const panel=document.getElementById('media-server-panel');if(!panel)return;
  let admin_password=null;
  if(needsPassword){
-  const titles={install:'Install MiniDLNA',save:'Save MiniDLNA settings',grant:'Allow media server folder access',rebuild:'Rebuild MiniDLNA library'};
+  const titles={install:'Install MiniDLNA',save:'Save MiniDLNA settings',grant:'Allow media server folder access',rebuild:'Rebuild MiniDLNA library','setup-library':'Create standard media library'};
   const descriptions={
    install:'Install and enable MiniDLNA from the OS package repository.',
    save:'Validate and save the configuration, then restart MiniDLNA.',
    grant:'Give the MiniDLNA service account read/traverse access to this folder and its existing files and add default read ACLs for new files. DLNA clients on your local network may be able to browse this media.',
-   rebuild:'Stop MiniDLNA, remove only its cached media index and restart scanning. Media files are preserved, but client bookmarks may be lost.'
+   rebuild:'Stop MiniDLNA, remove only its cached media index and restart scanning. Media files are preserved, but client bookmarks may be lost.',
+   'setup-library':'Create Movies, Television, Music and Pictures folders on the selected mounted disk, and replace MiniDLNA media folder settings. Existing files and folders are preserved.'
   };
   admin_password=await fileTextDialog({title:titles[action]||'Manage MiniDLNA',
     label:'Administrator password',description:descriptions[action]||'',confirmLabel:action==='install'?'Install':action==='rebuild'?'Rebuild':'Confirm',password:true});
@@ -283,7 +355,7 @@ async function mediaAction(action,needsPassword,settings){
  }else if(!confirm('Run '+action+' on MiniDLNA?'))return;
  mediaBusy=true;
  const message=panel.querySelector('#ms-message');if(message)message.textContent='Applying '+action+'…';
- try{await post('/api/media-server',{action,admin_password,settings});await loadMediaServer()}
+ try{const result=await post('/api/media-server',{action,admin_password,settings});mediaSuccess=action==='setup-library'?'Media library ready at '+result.library_path:action==='install'?'MiniDLNA installed. Choose a storage disk to complete setup.':'';await loadMediaServer()}
  catch(error){if(message)message.textContent=error.message;else alert(error.message)}
  finally{mediaBusy=false}
 }
