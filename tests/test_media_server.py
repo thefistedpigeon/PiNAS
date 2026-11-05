@@ -80,7 +80,7 @@ class MediaServerTests(unittest.TestCase):
         self.assertIn("'PATH':'/usr/sbin:/usr/bin:/sbin:/bin'",HELPER)
     def test_api_is_admin_only_and_password_protected(self):
         self.assertIn("if path=='/api/media-server':",API)
-        self.assertIn("media_server_action(action,data.get('settings')",API)
+        self.assertIn("media_server_action(action,payload)",API)
         self.assertIn("verify(password,(admin_record(cfg,s['username'])",API)
     def test_ui_has_menu_install_and_settings(self):
         self.assertIn("items.push('Media Server')",UI)
