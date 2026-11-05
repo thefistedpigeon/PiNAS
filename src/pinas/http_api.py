@@ -42,6 +42,11 @@ class Handler(BaseHTTPRequestHandler):
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503)
             return
+        if path=='/api/media-breakdown':
+            _,session=self.session()
+            if not session or session.get('role')!='admin':
+                self.json({'error':'Administrator access required'},403);return
+            self.json(media_breakdown_status());return
         if path=='/api/service-health':
             _,sess=self.session()
             if not sess or sess.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
@@ -73,7 +78,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -380,6 +385,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(result);return
             except (OSError,subprocess.TimeoutExpired,ValueError,RuntimeError) as exc:
                 self.json({'error':'Disk operation failed: '+str(exc)[:500]},503);return
+        if path=='/api/media-breakdown':
+            if data.get('action')!='refresh':
+                self.json({'error':'Unsupported breakdown action'},400);return
+            self.json(media_breakdown_status(refresh=True));return
+        if path=='/api/repair-share':
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Incorrect administrator password'},403);return
+            try:
+                result=privileged_command('pinas-nas-share','repair',payload=json.dumps({'name':name}),timeout=180)
+                if result.returncode:raise RuntimeError(result.stderr.strip()[-600:] or 'Repair failed')
+                self.json(json.loads(result.stdout));return
+            except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
+                self.json({'error':str(exc)},503);return
         if path=='/api/edit-share':
             name=data.get('name');new_name=data.get('new_name');access=data.get('access');password=data.get('admin_password');public=data.get('public',False);public_write=data.get('public_write',False)
             if not all(isinstance(x,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',x) for x in (name,new_name)):
@@ -664,7 +685,7 @@ CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
 SMB=pathlib.Path('/etc/samba/smb.conf')
 
 def run(cmd, **kw):
-    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+    return subprocess.run(cmd,check=True,capture_output=True,text=True,timeout=kw.pop('timeout',15),**kw)
 
 def read_db():
     try:
@@ -804,6 +825,47 @@ def main():
                 except OSError:raise ValueError('Migration failed and manual folder recovery is required: '+str(target))
             raise
         print(json.dumps({'ok':True,'name':name,'folder':str(target)}));return
+    if len(sys.argv)==2 and sys.argv[1]=='repair':
+        # Explicit ACL repair for a single managed share. Never chmod -R,
+        # alter owner/group or recurse through another mounted filesystem.
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw)
+        name=request.get('name') if isinstance(request,dict) else None
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+            raise ValueError('Invalid share name')
+        items=[item for item in read_db() if isinstance(item,dict) and item.get('name')==name]
+        if len(items)!=1:raise ValueError('Share is not managed by PiNAS')
+        item=items[0]
+        mount=check_volume(item.get('volume'))
+        folder=pathlib.Path(item.get('folder') or str(mount/'PiNAS Shares'/name))
+        if folder.parent not in (mount/'PiNAS Shares',mount/'pinas-shares'):
+            raise ValueError('Unrecognized managed share location')
+        if folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:
+            raise ValueError('Unsafe share root')
+        if folder.stat().st_dev!=mount.stat().st_dev:
+            raise ValueError('Share is on an unexpected filesystem')
+        mounted=run(['/usr/bin/findmnt','-rn','-o','TARGET']).stdout.splitlines()
+        if any(point==str(folder) or point.startswith(str(folder)+'/') for point in mounted):
+            raise ValueError('Share contains another mounted filesystem')
+        access=item.get('access',{})
+        public=item.get('public',False)
+        writable=item.get('public_write',False)
+        if type(public)!=bool or type(writable)!=bool or not isinstance(access,dict):
+            raise ValueError('Invalid saved access policy')
+        if public:
+            entries=['u:nobody:'+('rwX' if writable else 'rX')]
+        else:
+            if not access or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or p not in ('ro','rw') for u,p in access.items()):
+                raise ValueError('Invalid saved share permissions')
+            entries=['u:'+u+':'+('rwX' if p=='rw' else 'rX') for u,p in access.items()]
+        # POSIX ACL permissions are re-applied to existing content, not
+        # replaced wholesale; custom ACLs, ownership and file modes remain.
+        run(['/usr/bin/setfacl','-R','-P','-m',','.join(entries),str(folder)],timeout=150)
+        defaults=[entry.replace('X','x') for entry in entries]
+        run(['/usr/bin/find',str(folder),'-xdev','-type','d','-exec',
+             '/usr/bin/setfacl','-m',','.join('d:'+e for e in defaults),'{}','+'],timeout=150)
+        print(json.dumps({'ok':True,'name':name}));return
     if len(sys.argv)==2 and sys.argv[1]=='edit':
         raw=sys.stdin.read(8193)
         if len(raw)>8192:raise ValueError('Request too large')
@@ -841,7 +903,7 @@ def main():
         else:
             stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
             if rw:stanza+='   write list = '+', '.join(rw)+'\n'
-        stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+        stanza+='   create mask = 0660\n   directory mask = 0770\n   inherit acls = yes\n   follow symlinks = no\n   wide links = no\n'
         newconf=oldconf[:found[0].start()]+stanza+oldconf[found[0].end():]
         olddb=DB.read_text()
         oldacl=run(['/usr/bin/getfacl','-p',str(folder)]).stdout
@@ -849,9 +911,9 @@ def main():
         try:
             run(['/usr/bin/setfacl','-b',str(folder)])
             run(['/usr/bin/setfacl','-k',str(folder)])
+            os.chmod(folder,0o777 if public else 0o700)
+            # chmod after setfacl would collapse the ACL mask and deny named users.
             run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
-            if public:os.chmod(folder,0o777)
-            else:os.chmod(folder,0o700)
             if new_smb!=old_smb:atomic(SMB,new_smb,0o644)
             atomic(CONF,newconf,0o644)
             run(['/usr/bin/testparm','-s'])
@@ -939,7 +1001,7 @@ def main():
     else:
         stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
         if rw:stanza+='   write list = '+', '.join(rw)+'\n'
-    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   inherit acls = yes\n   follow symlinks = no\n   wide links = no\n'
     oldconf=CONF.read_text() if CONF.exists() else ''
     if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
     folder.mkdir(mode=0o700)
