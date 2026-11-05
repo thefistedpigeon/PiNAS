@@ -219,21 +219,26 @@ async function loadMediaServer(){
    return;
   }
   const opts=result.settings||{},defaultValue={friendly_name:info.hostname||'PiNAS',port:8200,notify_interval:895,max_connections:50};
+  const folderActions=(opts.media_dir||[]).map(item=>{
+   const path=item.replace(/^[AVP],/,'');
+   return '<div class="line"><span class="small">'+esc(path)+'</span><button type="button" class="btn outline" data-media-grant="'+esc(path)+'">Grant DLNA read access</button></div>';
+  }).join('')||'<p class="hint">Save at least one media folder to configure its read access.</p>';
   const fields=MEDIA_FIELDS.map(([key,label,type])=>{
    const val=opts[key]??defaultValue[key]??'';
    if(type==='checkbox')return '<label class="media-checkbox"><input type="checkbox" data-ms-key="'+key+'" '+(val==='yes'?'checked':'')+'><span>'+esc(label)+'</span></label>';
    return '<label class="field">'+esc(label)+'<input data-ms-key="'+key+'" type="'+type+'" value="'+esc(val)+'" maxlength="180"></label>';
   }).join('');
   panel.innerHTML='<div class="line"><strong>Service status</strong><span class="pill '+(result.state==='active'?'good':'')+'">'+esc(result.state==='active'?'Running':result.state)+'</span></div>'
-   +'<div class="media-actions"><button class="btn outline" data-media-action="start">Start</button><button class="btn outline" data-media-action="stop">Stop</button><button class="btn outline" data-media-action="restart">Restart</button><button class="btn outline" data-media-action="rescan">Rescan</button></div>'
+   +'<div class="media-actions"><button class="btn outline" data-media-action="start">Start</button><button class="btn outline" data-media-action="stop">Stop</button><button class="btn outline" data-media-action="restart">Restart</button><button class="btn outline" data-media-action="rescan">Restart scan</button><button class="btn outline" data-media-action="rebuild">Rebuild library</button></div>'
    +'<form id="ms-form"><h3>Media folders</h3><p class="hint">One full folder path per line under /mnt/pinas/. Optionally prefix A, V or P followed by a comma for audio, video or photos.</p>'
    +'<label class="field">Shared folders<textarea id="ms-folders" rows="5" placeholder="V,/mnt/pinas/UUID/pinas-shares/Movies">'+esc((opts.media_dir||[]).join('\n'))+'</textarea></label>'
-   +'<p class="hint"><strong>Privacy:</strong> DLNA discovery is intended for trusted local networks and does not enforce NAS user accounts. Only add folders you intend to expose. The minidlna service account must have read permission; PiNAS will not change filesystem permissions automatically.</p>'
-   +'<h3>Settings</h3><div class="media-fields">'+fields+'</div><div class="modal-actions"><button class="btn" type="submit">Save settings</button><button type="button" class="btn outline" id="ms-refresh">Refresh</button></div></form><p id="ms-message" role="status"></p>';
+   +'<p class="hint"><strong>Privacy:</strong> DLNA discovery is intended for trusted local networks and does not enforce NAS user accounts. Only add folders you intend to expose. The minidlna service account must have read permission; PiNAS only grants read permissions when you explicitly choose Grant DLNA read access below.</p>'
+   +'<h3>Folder permissions</h3>'+folderActions+'<h3>Settings</h3><div class="media-fields">'+fields+'</div><div class="modal-actions"><button class="btn" type="submit">Save settings</button><button type="button" class="btn outline" id="ms-refresh">Refresh</button></div></form><p id="ms-message" role="status"></p>';
   panel.querySelectorAll('[data-media-action]').forEach(button=>{
    button.disabled=(button.dataset.mediaAction==='start'&&result.state==='active')||(button.dataset.mediaAction==='stop'&&result.state!=='active');
    button.onclick=()=>mediaAction(button.dataset.mediaAction,false);
   });
+  panel.querySelectorAll('[data-media-grant]').forEach(button=>button.onclick=()=>mediaAction('grant',true,{path:button.dataset.mediaGrant}));
   panel.querySelector('#ms-refresh').onclick=loadMediaServer;
   panel.querySelector('#ms-form').onsubmit=async event=>{
    event.preventDefault();
@@ -252,9 +257,15 @@ async function mediaAction(action,needsPassword,settings){
  const panel=document.getElementById('media-server-panel');if(!panel)return;
  let admin_password=null;
  if(needsPassword){
-  admin_password=await fileTextDialog({title:action==='install'?'Install MiniDLNA':'Save MiniDLNA settings',
-    label:'Administrator password',description:action==='install'?'Install and enable the MiniDLNA package.':'Update settings and restart MiniDLNA.',
-    confirmLabel:action==='install'?'Install':'Save settings',password:true});
+  const titles={install:'Install MiniDLNA',save:'Save MiniDLNA settings',grant:'Allow media server folder access',rebuild:'Rebuild MiniDLNA library'};
+  const descriptions={
+   install:'Install and enable MiniDLNA from the OS package repository.',
+   save:'Validate and save the configuration, then restart MiniDLNA.',
+   grant:'Give the MiniDLNA service account read/traverse access to this folder and its existing files and add default read ACLs for new files. DLNA clients on your local network may be able to browse this media.',
+   rebuild:'Stop MiniDLNA, remove only its cached media index and restart scanning. Media files are preserved, but client bookmarks may be lost.'
+  };
+  admin_password=await fileTextDialog({title:titles[action]||'Manage MiniDLNA',
+    label:'Administrator password',description:descriptions[action]||'',confirmLabel:action==='install'?'Install':action==='rebuild'?'Rebuild':'Confirm',password:true});
   if(admin_password===null)return;
  }else if(!confirm('Run '+action+' on MiniDLNA?'))return;
  mediaBusy=true;
