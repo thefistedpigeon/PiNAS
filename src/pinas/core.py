@@ -118,7 +118,7 @@ def package_updates(force=False):
     with APT_CACHE_LOCK:
         with UPDATE_LOCK:
             running=UPDATE_STATUS['running']
-        if running or (not force and time.monotonic()-APT_CACHE_AT<60):
+        if running or (APT_CACHE_AT>0 and not force and time.monotonic()-APT_CACHE_AT<60):
             return copy.deepcopy(APT_CACHE_RESULT)
         result=_package_updates_uncached()
         APT_CACHE_RESULT=result
