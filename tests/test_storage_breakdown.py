@@ -65,7 +65,7 @@ class StorageBreakdownTests(unittest.TestCase):
         self.assertIn("if len(sys.argv)==2 and sys.argv[1]=='repair':",share)
         self.assertIn("run(['/usr/bin/setfacl','-R','-P','-m'",share)
         self.assertIn("point.startswith(str(folder)+'/')",share)
-        self.assertIn("os.chmod(folder,0o777 if public else 0o700)\\n            # chmod after setfacl",share)
+        self.assertIn("os.chmod(folder,0o777 if public else 0o700)\n            # chmod after setfacl",share)
         self.assertIn("['list','create','delete','edit','migrate','repair']",INSTALL.replace('"',"'"))
         self.assertIn("data-repair-share",UI)
         self.assertIn("if path=='/api/repair-share':",API)
