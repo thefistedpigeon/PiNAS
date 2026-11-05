@@ -1,4 +1,5 @@
 """v1.0.10: private NAS home shares and explicit legacy directory migration."""
+# Regression coverage includes Samba-reserved private-share names.
 import ast
 from pathlib import Path
 import unittest
