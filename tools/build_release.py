@@ -6,7 +6,7 @@ import pathlib
 import re
 import sys
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-NAMES=('core.py','web_ui.py','http_api.py','privileged_helpers.py','installer.py')
+NAMES=('core.py','web_ui.py','http_api.py','privileged_helpers.py','media_server.py','installer.py')
 def build():
     parts={name:(ROOT/'src'/'pinas'/name).read_text(encoding='utf-8') for name in NAMES}
     version=re.search(r"^VERSION='([^']+)'",parts['core.py'],re.M)
