@@ -287,3 +287,29 @@ if __name__=='__main__':
     except Exception as exc:print(str(exc),file=sys.stderr);sys.exit(1)
 """
 
+
+POWER_HELPER = r"""#!/usr/bin/env python3
+# Explicitly constrained privileged power broker. No shell or user commands.
+import os,subprocess,sys,time
+from pathlib import Path
+
+def main():
+    if os.geteuid()!=0 or len(sys.argv)!=2 or sys.argv[1] not in ('reboot','shutdown'):
+        raise ValueError('Unsupported power operation')
+    action=sys.argv[1]
+    unit='pinas-admin-'+action+'-'+str(int(time.time()))
+    systemctl='/usr/bin/systemctl'
+    if not Path(systemctl).is_file() or not Path('/usr/bin/systemd-run').is_file():
+        raise RuntimeError('systemd power management is unavailable')
+    command='reboot' if action=='reboot' else 'poweroff'
+    result=subprocess.run(['/usr/bin/systemd-run','--quiet','--unit='+unit,
+          '--on-active=8s',systemctl,command],capture_output=True,text=True,timeout=12)
+    if result.returncode:
+        raise RuntimeError((result.stderr or 'systemd refused power operation')[-350:])
+    print('Scheduled '+action)
+
+if __name__=='__main__':
+    try:main()
+    except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)
+"""
