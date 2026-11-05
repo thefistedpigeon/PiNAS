@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Release status:** PiNAS v1.0.8 is the current official release, incorporating the v1.0.7 update-history, service-health and UI refinements plus guarded disk wipe/format actions. Keep independent backups of important files; destructive operations are irreversible and must only be used after checking the selected drive.
+> **Release status:** PiNAS v1.0.13 is the current code baseline. The v1.0.14 hardening changes are under review. Keep independent backups of important files; destructive storage operations are irreversible. Versioned release candidates should be tested on a spare Pi before promotion.
 
 ## Features
 
@@ -164,7 +164,7 @@ Edit the files in `src/pinas/` and regenerate `pinas.py`; **do not maintain the 
 
 ## Scope and known limitations
 
-PiNAS intentionally prioritises simple NAS functionality and Raspberry Pi efficiency over container orchestration and heavyweight applications. The former **Applications** page and MiniDLNA integration were removed; a dedicated **Media Server** page may return once a reliable implementation has been tested.
+PiNAS intentionally prioritises simple NAS functionality and Raspberry Pi efficiency over container orchestration and heavyweight applications. The former **Applications** page was removed. The optional **Media Server** page manages MiniDLNA and guided media folders, but is never installed by default.
 
 - EEPROM firmware **installation** through the UI is not implemented; checking only.
 - The modular source structure has not yet been fully refactored into independently importable Python modules.
@@ -181,7 +181,7 @@ See [v1.0.1 code-quality and UI-consistency notes](docs/releases/v1.0.1.md). The
 
 ## Recent releases
 
-- **v1.0.8 (current):** [Official release notes](docs/releases/v1.0.8.md) — update history and service health, final button consistency, and guarded Wipe Disk / Format Disk.
+- **v1.0.8 (historical):** [Official release notes](docs/releases/v1.0.8.md) — update history and service health, final button consistency, and guarded Wipe Disk / Format Disk.
 
 - **v1.0.6:** [Official release notes](docs/releases/v1.0.6.md) — storage safety and recovery, Overview disk health/temperature, standardised buttons and improved automatic browser reload after an application update.
 - **v1.0.5 (development milestone):** [Storage safety and testing notes](docs/releases/v1.0.5.md).
@@ -196,3 +196,11 @@ The [v1.0.7 update history and service-health notes](docs/releases/v1.0.7.md) de
 ## v1.0.8 official release
 
 See the [v1.0.8 Wipe Disk and Format Disk notes](docs/releases/v1.0.8.md) for supported actions, safety limitations, and disposable-disk testing guidance.
+
+## Current PiNAS module layout (v1.0.13+)
+
+The standalone `pinas.py` is generated from seven ordered source sections: `core.py`, `web_ui.py`, `storage_breakdown.py`, `http_api.py`, `privileged_helpers.py`, `media_server.py`, and `installer.py`. The sections execute in a shared namespace for portable deployment; changes require rebuilding with `python3 tools/build_release.py`. The `--check` command verifies the full generated output.
+
+**Media Server:** MiniDLNA is optional. A mounted PiNAS disk can be used to create a `pinas-media` directory with Movies, Television, Music and Pictures libraries. DLNA access is separate from SMB permissions. The Overview classifies video, picture, music and other disk usage on demand, while existing SMB folders inherit ACL policies.
+
+**Development:** v1.0.14 focuses on configuration and update efficiency, safer privileged operations, UX improvements and regression coverage. See `docs/releases/v1.0.14.md` for the candidate checklist.

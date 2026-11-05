@@ -10,12 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install lightweight lint checker
+        run: python3 -m pip install --disable-pip-version-check ruff==0.14.4
+      - name: Ruff critical correctness checks
+        run: ruff check --select E9,F63,F7,F82 --ignore F821 src/pinas tools
       - name: Verify generated release matches source
         run: python3 tools/build_release.py --check
       - name: Compile Python files
