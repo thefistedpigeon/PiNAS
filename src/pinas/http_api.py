@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -260,6 +260,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Username reserved for the PiNAS administrator.'},409);return
             if any(u['name']==username for u in nas_user_list()):self.json({'error':'Samba user already exists.'},409);return
             if create_home:
+                if not re.fullmatch(r'[a-z][a-z0-9_-]{2,31}',username):
+                    self.json({'error':'Private home share names must start with a letter.'},400);return
                 if not isinstance(home_volume,str) or not re.fullmatch(r'/dev/[a-zA-Z0-9_./-]{1,90}',home_volume) or '..' in home_volume:
                     self.json({'error':'Select a valid persistent disk for the private home share.'},400);return
                 if not isinstance(admin_password,str) or not verify(admin_password,(admin_record(cfg,s['username']) or {}).get('password','')):
@@ -371,6 +373,20 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json({'ok':True,'share':new_name});return
+        if path=='/api/migrate-share':
+            if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid share name.'},400);return
+            if data.get('confirm')!='MOVE SHARE':
+                self.json({'error':'Explicit migration confirmation required.'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            try:result=migrate_nas_share(name)
+            except (OSError,subprocess.TimeoutExpired,RuntimeError,ValueError) as exc:
+                self.json({'error':str(exc)},503);return
+            DISCOVERY_AT=0
+            self.json(result);return
         if path=='/api/delete-share':
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
