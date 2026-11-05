@@ -29,6 +29,7 @@ class HardeningTests(unittest.TestCase):
             config=Path(tmp)/'config.json'
             config.write_text(json.dumps({'theme':'dark','profiles':{'user':'Alice'}}))
             ns['CONFIG']=config
+            ns['DATA']=Path(tmp)
             ns['CONFIG_CACHE_KEY']=None
             ns['CONFIG_CACHE_VALUE']=None
             first=ns['load']()
@@ -84,7 +85,7 @@ class HardeningTests(unittest.TestCase):
         tls=load_helper('HOSTNAME_HELPER',API)
         compile(tls,'pinas-apply-hostname','exec')
         self.assertIn("MANAGED=ROOT/'tls-managed'",tls)
-        self.assertIn("'checkend','5184000'",tls)
+        self.assertIn("'-checkend','5184000'",tls)
         self.assertIn("if not MANAGED.exists():",tls)
         self.assertIn("OnCalendar=monthly",INSTALL)
 

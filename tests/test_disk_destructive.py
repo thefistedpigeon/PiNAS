@@ -121,7 +121,7 @@ class DiskDestructiveTests(unittest.TestCase):
 
     def test_upgrade_installs_restricted_root_helper(self):
         self.assertIn("install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,[\"wipe\",\"format\"])",INSTALL)
-        self.assertIn("if Path('/usr/local/libexec/pinas-apt-index').is_file()",INSTALL)
+        self.assertIn("('pinas-apt-index',APT_INDEX_HELPER",INSTALL)
 
 if __name__=='__main__':
     unittest.main()

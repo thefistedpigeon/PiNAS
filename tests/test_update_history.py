@@ -80,7 +80,7 @@ class UpdateHistoryTests(unittest.TestCase):
         self.assertIn("result['history_months']=load().get('update_history_months',6)",API)
 
     def test_gui_installer_updates_privileged_helper(self):
-        self.assertIn("if Path('/usr/local/libexec/pinas-apt-index').is_file():",INSTALLER)
+        self.assertIn("('pinas-apt-index',APT_INDEX_HELPER",INSTALLER)
         self.assertIn('"restart-auto timer","restart-auto service"',INSTALLER)
         self.assertIn('"prune 6","prune 12"',INSTALLER)
 
