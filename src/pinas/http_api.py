@@ -706,6 +706,58 @@ def main():
                     item['folder']=str(legacy if legacy.is_dir() else modern)
             except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired):pass
         print(json.dumps(items));return
+    if len(sys.argv)==2 and sys.argv[1]=='migrate':
+        # Explicit, non-destructive legacy-directory migration. No source
+        # directory is removed or overwritten; os.rename is same-filesystem.
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw);name=request.get('name')
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+            raise ValueError('Invalid share name')
+        current=read_db()
+        matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
+        if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        item=matches[0];mount=check_volume(item.get('volume'))
+        legacy_root=mount/'PiNAS Shares'
+        legacy=legacy_root/name
+        target_root=mount/'pinas-shares'
+        target=target_root/name
+        if pathlib.Path(item.get('folder') or str(legacy))!=legacy:
+            raise ValueError('Share is not using the legacy directory')
+        if legacy_root.is_symlink() or legacy.is_symlink() or not legacy.is_dir() or legacy.stat().st_uid!=0:
+            raise ValueError('Unsafe legacy share directory')
+        if target_root.is_symlink() or target.exists() or target.is_symlink():
+            raise ValueError('Destination already exists or is unsafe')
+        # No existing folder is adopted or overwritten.
+        target_root.mkdir(mode=0o711,exist_ok=True)
+        if target_root.stat().st_uid!=0 or (target_root.stat().st_mode & 0o022):
+            raise ValueError('Unsafe new shares directory')
+        oldconf=CONF.read_text();olddb=DB.read_text()
+        section=re.compile(r'(?m)^\\['+re.escape(name)+r'\\][ \\t]*\\n(?:(?!\\[).*(?:\\n|$))*')
+        sections=list(section.finditer(oldconf))
+        if len(sections)!=1:raise ValueError('Managed Samba section missing or ambiguous')
+        previous=sections[0].group(0)
+        old_path='   path = '+str(legacy)+'\\n'
+        if previous.count(old_path)!=1:raise ValueError('Samba path differs from recorded legacy folder')
+        newconf=oldconf[:sections[0].start()]+previous.replace(old_path,'   path = '+str(target)+'\\n')+oldconf[sections[0].end():]
+        moved=False
+        try:
+            legacy.rename(target);moved=True
+            item['folder']=str(target)
+            atomic(CONF,newconf,0o644)
+            run(['/usr/bin/testparm','-s'])
+            run(['/usr/bin/systemctl','reload','smbd'])
+            atomic(DB,json.dumps(current,indent=2),0o600)
+        except Exception:
+            atomic(CONF,oldconf,0o644)
+            atomic(DB,olddb,0o600)
+            try:run(['/usr/bin/systemctl','reload','smbd'])
+            except Exception:pass
+            if moved:
+                try:target.rename(legacy)
+                except OSError:raise ValueError('Migration failed and manual folder recovery is required: '+str(target))
+            raise
+        print(json.dumps({'ok':True,'name':name,'folder':str(target)}));return
     if len(sys.argv)==2 and sys.argv[1]=='edit':
         raw=sys.stdin.read(8193)
         if len(raw)>8192:raise ValueError('Request too large')
