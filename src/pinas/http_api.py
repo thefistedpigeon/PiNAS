@@ -664,7 +664,7 @@ CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
 SMB=pathlib.Path('/etc/samba/smb.conf')
 
 def run(cmd, **kw):
-    return subprocess.run(cmd,check=True,timeout=15,capture_output=True,text=True,**kw)
+    return subprocess.run(cmd,check=True,capture_output=True,text=True,timeout=kw.pop('timeout',15),**kw)
 
 def read_db():
     try:
@@ -804,6 +804,47 @@ def main():
                 except OSError:raise ValueError('Migration failed and manual folder recovery is required: '+str(target))
             raise
         print(json.dumps({'ok':True,'name':name,'folder':str(target)}));return
+    if len(sys.argv)==2 and sys.argv[1]=='repair':
+        # Explicit ACL repair for a single managed share. Never chmod -R,
+        # alter owner/group or recurse through another mounted filesystem.
+        raw=sys.stdin.read(8193)
+        if len(raw)>8192:raise ValueError('Request too large')
+        request=json.loads(raw)
+        name=request.get('name') if isinstance(request,dict) else None
+        if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+            raise ValueError('Invalid share name')
+        items=[item for item in read_db() if isinstance(item,dict) and item.get('name')==name]
+        if len(items)!=1:raise ValueError('Share is not managed by PiNAS')
+        item=items[0]
+        mount=check_volume(item.get('volume'))
+        folder=pathlib.Path(item.get('folder') or str(mount/'PiNAS Shares'/name))
+        if folder.parent not in (mount/'PiNAS Shares',mount/'pinas-shares'):
+            raise ValueError('Unrecognized managed share location')
+        if folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0:
+            raise ValueError('Unsafe share root')
+        if folder.stat().st_dev!=mount.stat().st_dev:
+            raise ValueError('Share is on an unexpected filesystem')
+        mounted=run(['/usr/bin/findmnt','-rn','-o','TARGET']).stdout.splitlines()
+        if any(point==str(folder) or point.startswith(str(folder)+'/') for point in mounted):
+            raise ValueError('Share contains another mounted filesystem')
+        access=item.get('access',{})
+        public=item.get('public',False)
+        writable=item.get('public_write',False)
+        if type(public)!=bool or type(writable)!=bool or not isinstance(access,dict):
+            raise ValueError('Invalid saved access policy')
+        if public:
+            entries=['u:nobody:'+('rwX' if writable else 'rX')]
+        else:
+            if not access or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or p not in ('ro','rw') for u,p in access.items()):
+                raise ValueError('Invalid saved share permissions')
+            entries=['u:'+u+':'+('rwX' if p=='rw' else 'rX') for u,p in access.items()]
+        # POSIX ACL permissions are re-applied to existing content, not
+        # replaced wholesale; custom ACLs, ownership and file modes remain.
+        run(['/usr/bin/setfacl','-R','-P','-m',','.join(entries),str(folder)],timeout=150)
+        defaults=[entry.replace('X','x') for entry in entries]
+        run(['/usr/bin/find',str(folder),'-xdev','-type','d','-exec',
+             '/usr/bin/setfacl','-m',','.join('d:'+e for e in defaults),'{}','+'],timeout=150)
+        print(json.dumps({'ok':True,'name':name}));return
     if len(sys.argv)==2 and sys.argv[1]=='edit':
         raw=sys.stdin.read(8193)
         if len(raw)>8192:raise ValueError('Request too large')
@@ -841,7 +882,7 @@ def main():
         else:
             stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
             if rw:stanza+='   write list = '+', '.join(rw)+'\n'
-        stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+        stanza+='   create mask = 0660\n   directory mask = 0770\n   inherit acls = yes\n   follow symlinks = no\n   wide links = no\n'
         newconf=oldconf[:found[0].start()]+stanza+oldconf[found[0].end():]
         olddb=DB.read_text()
         oldacl=run(['/usr/bin/getfacl','-p',str(folder)]).stdout
@@ -849,9 +890,9 @@ def main():
         try:
             run(['/usr/bin/setfacl','-b',str(folder)])
             run(['/usr/bin/setfacl','-k',str(folder)])
+            os.chmod(folder,0o777 if public else 0o700)
+            # chmod after setfacl would collapse the ACL mask and deny named users.
             run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
-            if public:os.chmod(folder,0o777)
-            else:os.chmod(folder,0o700)
             if new_smb!=old_smb:atomic(SMB,new_smb,0o644)
             atomic(CONF,newconf,0o644)
             run(['/usr/bin/testparm','-s'])
@@ -939,7 +980,7 @@ def main():
     else:
         stanza+='   guest ok = no\n   valid users = '+', '.join(access)+'\n'
         if rw:stanza+='   write list = '+', '.join(rw)+'\n'
-    stanza+='   create mask = 0660\n   directory mask = 0770\n   follow symlinks = no\n   wide links = no\n'
+    stanza+='   create mask = 0660\n   directory mask = 0770\n   inherit acls = yes\n   follow symlinks = no\n   wide links = no\n'
     oldconf=CONF.read_text() if CONF.exists() else ''
     if '['+name+']' in oldconf:raise ValueError('Duplicate managed share')
     folder.mkdir(mode=0o700)
