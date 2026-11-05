@@ -135,15 +135,15 @@ class Handler(BaseHTTPRequestHandler):
         if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
         if path=='/api/media-server':
             action=data.get('action')
-            if action not in ('install','save','start','stop','restart','rescan','grant','rebuild'):
+            if action not in ('install','save','start','stop','restart','rescan','grant','rebuild','setup-library'):
                 self.json({'error':'Unsupported media action'},400);return
-            if action in ('install','save','grant','rebuild'):
+            if action in ('install','save','grant','rebuild','setup-library'):
                 password=data.get('admin_password')
                 if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
                     time.sleep(.35);self.json({'error':'Administrator password is incorrect'},403);return
-            if action in ('save','grant') and not isinstance(data.get('settings'),dict):
+            if action in ('save','grant','setup-library') and not isinstance(data.get('settings'),dict):
                 self.json({'error':'Invalid media settings'},400);return
-            try:self.json(media_server_action(action,data.get('settings') if action in ('save','grant') else None))
+            try:self.json(media_server_action(action,data.get('settings') if action in ('save','grant','setup-library') else None))
             except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503)
             return

@@ -18,6 +18,52 @@ def scope():
     exec(compile(HELPER,'pinas-media-server','exec'),result)
     return result
 class MediaServerTests(unittest.TestCase):
+    def test_library_setup_provisions_four_typed_folders(self):
+        ns=scope()
+        saved=[]
+        with tempfile.TemporaryDirectory() as root:
+            volume=Path(root)/'uuid';volume.mkdir()
+            folder=volume/'pinas-media';folder.mkdir()
+            (folder/'Movies').mkdir()
+            (folder/'Movies'/'existing.mkv').write_text('untouched')
+            ns['installed']=lambda:True
+            ns['configured_volume']=lambda v:volume
+            ns['save']=lambda data,emit_status=True:saved.append(data)
+            ns['active']=lambda:'active'
+            ns['settings']=lambda:{}
+            ns['setup_library']({'volume':str(volume)})
+            self.assertEqual((folder/'Movies'/'existing.mkv').read_text(),'untouched')
+            self.assertTrue(all((folder/name).is_dir() for name in ('Movies','Television','Music','Pictures')))
+            self.assertEqual([x['type'] for x in saved[0]['media_dir']],['V','V','A','P'])
+            self.assertTrue(saved[0]['inotify'])
+
+    def test_library_setup_preserves_existing_media_on_failure(self):
+        ns=scope()
+        with tempfile.TemporaryDirectory() as root:
+            volume=Path(root)/'uuid';volume.mkdir()
+            folder=volume/'pinas-media';folder.mkdir()
+            (folder/'Movies').mkdir()
+            (folder/'Movies'/'existing.mkv').write_text('keep')
+            ns['installed']=lambda:True
+            ns['configured_volume']=lambda v:volume
+            def fail(data,emit_status=True):raise RuntimeError('Restart failed')
+            ns['save']=fail
+            with self.assertRaises(RuntimeError):ns['setup_library']({'volume':str(volume)})
+            self.assertEqual((folder/'Movies'/'existing.mkv').read_text(),'keep')
+            self.assertFalse((folder/'Television').exists())
+
+    def test_library_setup_rejects_invalid_payloads(self):
+        ns=scope();ns['installed']=lambda:True
+        for data in (None,{}, {'volume':'/etc'}, {'volume':42}):
+            with self.assertRaises((ValueError,TypeError)):
+                ns['setup_library'](data)
+
+    def test_library_api_and_ui_are_admin_gated(self):
+        self.assertIn("if action in ('install','save','grant','rebuild','setup-library'):",API)
+        self.assertIn("if action in ('save','grant','setup-library') and not isinstance",API)
+        self.assertIn("id=\"ms-library-volume\"",UI)
+        self.assertIn("mediaAction('setup-library',true,{volume:target})",UI)
+
     def test_syntax_and_optional_install(self):
         compile(MEDIA,'media_server.py','exec')
         compile(HELPER,'pinas-media-server','exec')
