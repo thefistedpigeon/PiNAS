@@ -10,23 +10,40 @@ def expand_modules(target):
         tmp.write_text(source,encoding='utf-8')
         os.chmod(tmp,0o644)
         os.replace(tmp,destination)
-    # Browser-based upgrades invoke --extract-modules as root. Synchronise the
-    # narrowly scoped APT helper and sudo rule too, otherwise scheduled updates
-    # would continue to use the older, non-logging helper after a GUI upgrade.
-    # Keep destructive operations isolated from the non-destructive adoption helper.
-    # Existing browser-driven upgrades update the root helper and its sudoers rule.
-    # The browser updater must also refresh the storage-adoption helper;
-    # otherwise existing installations retain older mount logic.
-    install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"])
-    install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
-    install_privileged_helper('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"])
-    install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])
-    install_privileged_helper('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"])
-    if Path('/usr/local/libexec/pinas-apt-index').is_file():
-        install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,
-          ["refresh","upgrade","firmware-check","schedule off","schedule daily",
-           "schedule weekly","schedule monthly","reboot","prune 6","prune 12",
-           "restart-auto timer","restart-auto service"])
+    # GUI upgrades call --extract-modules, not --install. Refresh every
+    # managed helper and its sudoers allowlist to avoid old code after update.
+    specifications=(
+        ('pinas-nas-user',NAS_USER_HELPER,["create *","password *","list"]),
+        ('pinas-smb-reset',SMB_RESET_HELPER,["reset"]),
+        ('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"]),
+        ('pinas-nas-files',NAS_FILES_HELPER,[""]),
+        ('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"]),
+        ('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"]),
+        ('pinas-disk-erase',NAS_DISK_ERASE_HELPER,["wipe","format"]),
+        ('pinas-smart-health',SMART_HEALTH_HELPER,[""]),
+        ('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"]),
+        ('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily",
+             "schedule weekly","schedule monthly","reboot","prune 6","prune 12",
+             "restart-auto timer","restart-auto service"]),
+    )
+    for name,source,allowed in specifications:
+        install_privileged_helper(name,source,allowed)
+    # The hostname listener is a root-owned systemd helper (not in sudoers).
+    # Existing GUI installations need the new TLS-aware version as well.
+    hostname_helper=Path('/usr/local/libexec/pinas-apply-hostname')
+    if hostname_helper.exists():
+        staged=hostname_helper.with_name('.pinas-apply-hostname-'+secrets.token_hex(6))
+        try:
+            staged.write_text(HOSTNAME_HELPER)
+            os.chown(staged,0,0);os.chmod(staged,0o755)
+            os.replace(staged,hostname_helper)
+        finally:
+            staged.unlink(missing_ok=True)
+        timer=Path('/etc/systemd/system/pinas-hostname.timer')
+        timer.write_text('[Unit]\nDescription=Renew PiNAS-managed TLS certificates\n[Timer]\nOnCalendar=monthly\nPersistent=true\nUnit=pinas-hostname.service\n[Install]\nWantedBy=timers.target\n')
+        subprocess.run(['systemctl','daemon-reload'],check=True,timeout=20)
+        subprocess.run(['systemctl','enable','--now','pinas-hostname.timer'],check=True,timeout=25)
+        subprocess.run(['systemctl','start','pinas-hostname.service'],check=True,timeout=25)
 
 def install_privileged_helper(name, source, allowed_commands):
     """Install a root-owned helper with a validated, narrowly scoped sudoers rule."""
