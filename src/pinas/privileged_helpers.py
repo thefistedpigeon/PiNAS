@@ -178,32 +178,64 @@ if __name__=='__main__':
 SMART_HEALTH_HELPER = """#!/usr/bin/env python3
 import json,os,shutil,subprocess,sys
 from pathlib import Path
+
+def probe(smartctl,device,mode=None):
+    command=[smartctl,'-j','-n','standby','-H','-A']
+    if mode:command.extend(['-d',mode])
+    command.append(device)
+    try:
+        proc=subprocess.run(command,capture_output=True,text=True,timeout=12)
+        try:data=json.loads(proc.stdout)
+        except (ValueError,TypeError):data={}
+        return proc,data
+    except subprocess.TimeoutExpired:
+        return None,{}
+
 def main():
     if os.geteuid()!=0 or len(sys.argv)!=1:
         raise ValueError('Unsupported operation')
-    smartctl=shutil.which('smartctl')
-    if not smartctl:
-        print(json.dumps({'installed':False,'drives':[]}));return
-    p=subprocess.run(['lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],capture_output=True,text=True,timeout=8,check=True)
+    tool=shutil.which('smartctl')
+    if not tool:
+        print(json.dumps({'installed':False,'drives':[],'message':'Install smartmontools to read disk health.'}));return
+    p=subprocess.run(['/usr/bin/lsblk','-J','-b','-o','NAME,PATH,TYPE,MODEL,TRAN'],
+                     capture_output=True,text=True,timeout=8,check=True)
     drives=[]
     for disk in json.loads(p.stdout).get('blockdevices',[]):
         if disk.get('type')!='disk':continue
         device=disk.get('path','')
         if not isinstance(device,str) or not device.startswith('/dev/') or not Path(device).is_block_device():continue
-        if disk.get('name','').startswith(('loop','zram','ram','nbd','sr','fd')):continue
-        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable','temperature':None}
-        try:
-            result=subprocess.run([smartctl,'-j','-n','standby','-H','-A',device],capture_output=True,text=True,timeout=12)
-            data=json.loads(result.stdout)
+        if (disk.get('name') or '').startswith(('loop','zram','ram','nbd','sr','fd')):continue
+        entry={'device':device,'model':disk.get('model') or disk.get('name'),'status':'Unavailable',
+               'temperature':None,'message':''}
+        proc,data=probe(tool,device)
+        # Some USB-to-SATA bridges need explicit SAT passthrough.
+        if proc is not None and not data.get('smart_status') and (disk.get('tran') or '').lower()=='usb':
+            sat_proc,sat_data=probe(tool,device,'sat')
+            if sat_data.get('smart_status') or sat_data.get('temperature'):
+                proc,data=sat_proc,sat_data
+        if proc is None:
+            entry.update(status='Timed out',message='SMART query timed out without waking standby disks')
+        elif proc.returncode==2 and not data.get('smart_status') and not data.get('temperature'):
+            entry.update(status='Standby',message='Drive is sleeping; SMART was deliberately skipped')
+        elif data.get('smart_support',{}).get('available') is False:
+            entry.update(status='Unsupported',message='Drive or USB adapter does not expose SMART')
+        else:
             health=data.get('smart_status',{}).get('passed')
             if health is True:entry['status']='Healthy'
             elif health is False:entry['status']='Warning'
+            elif data.get('ata_smart_attributes') or data.get('nvme_smart_health_information_log'):
+                entry['status']='SMART available'
+                entry['message']='Drive does not return a simple pass/fail result'
+            else:
+                entry['status']='Unavailable'
+                entry['message']=(proc.stderr or '; '.join(item.get('string','') for item in data.get('messages',[]) if isinstance(item,dict)) or 'No SMART health reported by the drive or USB adapter').strip()[-220:]
             temp=data.get('temperature',{}).get('current')
+            if not isinstance(temp,(int,float)):
+                temp=data.get('nvme_smart_health_information_log',{}).get('temperature')
             if isinstance(temp,(int,float)) and -20<=temp<=120:entry['temperature']=temp
-            if data.get('smart_support',{}).get('available') is False:entry['status']='Unsupported'
-        except (OSError,ValueError,subprocess.TimeoutExpired):pass
         drives.append(entry)
     print(json.dumps({'installed':True,'drives':drives}))
+
 if __name__=='__main__':
     try:main()
     except Exception as exc:
