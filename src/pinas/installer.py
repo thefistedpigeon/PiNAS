@@ -143,7 +143,7 @@ class PiNASProtocolServer(ThreadingHTTPServer):
         try:
             request.settimeout(5)
             initial=request.recv(1,socket.MSG_PEEK)
-            if initial==b'\\x16':
+            if initial==b'\x16':
                 with self.tls_context.wrap_socket(request,server_side=True) as secure:
                     secure.settimeout(None)
                     super().finish_request(secure,client_address)
@@ -154,11 +154,11 @@ class PiNASProtocolServer(ThreadingHTTPServer):
                 local_ip=request.getsockname()[0]
                 address=('['+local_ip+']') if ':' in local_ip else local_ip
                 location='https://'+address+':'+str(self.server_address[1])+'/'
-                response=('HTTP/1.1 307 Temporary Redirect\\r\\n'
-                          'Location: '+location+'\\r\\n'
-                          'Content-Length: 0\\r\\n'
-                          'Connection: close\\r\\n'
-                          'Cache-Control: no-store\\r\\n\\r\\n')
+                response=('HTTP/1.1 307 Temporary Redirect\r\n'
+                          'Location: '+location+'\r\n'
+                          'Content-Length: 0\r\n'
+                          'Connection: close\r\n'
+                          'Cache-Control: no-store\r\n\r\n')
                 request.sendall(response.encode('ascii'))
         except (OSError,ssl.SSLError,ValueError):
             # Unknown/failed TLS handshakes must not be treated as HTTP.
