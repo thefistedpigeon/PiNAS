@@ -78,7 +78,7 @@ class HardeningTests(unittest.TestCase):
         smart=load_helper('SMART_HEALTH_HELPER',HELPERS)
         self.assertIn("[smartctl,'-j','-n','standby','-H','-A',device]",smart)
         self.assertIn("startswith('raid')",CORE)
-        self.assertIn("'nosuid,nodev'",HELPERS.replace('defaults,nofail,noatime,nosuid,nodev','nosuid,nodev'))
+        self.assertIn('noatime,nosuid,nodev',HELPERS)
 
     def test_tls_renewal_is_limited_to_managed_certificates(self):
         tls=load_helper('HOSTNAME_HELPER',API)

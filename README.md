@@ -109,7 +109,7 @@ systemctl is-active pinas.service
 ls -lah /opt/pinas/modules/
 ```
 
-A modular build should contain these five extracted files:
+A modular build contains these seven extracted source sections:
 
 ```text
 /opt/pinas/
@@ -117,8 +117,10 @@ A modular build should contain these five extracted files:
 └── modules/
     ├── core.py
     ├── web_ui.py
+    ├── storage_breakdown.py
     ├── http_api.py
     ├── privileged_helpers.py
+    ├── media_server.py
     └── installer.py
 ```
 
@@ -136,8 +138,10 @@ PiNAS development now uses logically separated source sections:
 src/pinas/
 ├── core.py
 ├── web_ui.py
+├── storage_breakdown.py
 ├── http_api.py
 ├── privileged_helpers.py
+├── media_server.py
 └── installer.py
 
 tools/build_release.py

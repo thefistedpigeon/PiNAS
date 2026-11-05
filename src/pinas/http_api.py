@@ -599,7 +599,7 @@ class Handler(BaseHTTPRequestHandler):
         save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
 
 HOSTNAME_HELPER = r"""#!/usr/bin/env python3
-"""Apply host identity and renew only PiNAS-generated self-signed TLS."""
+# Apply host identity and renew only PiNAS-generated self-signed TLS.
 import grp,json,os,pwd,re,shutil,subprocess,tempfile,time
 from pathlib import Path
 
