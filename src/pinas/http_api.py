@@ -24,6 +24,51 @@ class Handler(BaseHTTPRequestHandler):
             try:self.json(get_job(token,job_id))
             except ValueError:self.json({'error':'Job not found'},404)
             return
+        if path=='/api/file-download':
+            _,session=self.session()
+            if not session or session.get('role')!='user':
+                self.json({'error':'NAS user access required'},403);return
+            query=parse_qs(urlparse(self.path).query)
+            share=query.get('share',[''])[0];relative=query.get('path',[''])[0]
+            if not isinstance(share,str) or not share or not isinstance(relative,str) or not relative or len(relative)>1000:
+                self.json({'error':'Invalid download path'},400);return
+            command=['/usr/bin/sudo','-n','/usr/local/libexec/pinas-nas-files']
+            payload=json.dumps({'action':'download_stream','username':session['username'],
+                                'share':share,'path':relative}).encode()
+            process=None
+            sent=False
+            try:
+                process=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+                process.stdin.write(payload);process.stdin.close()
+                header=process.stdout.readline(1024)
+                if not header.endswith(b'\n'):raise ValueError('File download unavailable')
+                meta=json.loads(header)
+                length=meta.get('size')
+                if type(length) is not int or length<0:raise ValueError('Invalid download length')
+                filename=relative.rsplit('/',1)[-1]
+                self.send_response(200)
+                self.send_header('Content-Type','application/octet-stream')
+                self.send_header('Content-Disposition',"attachment; filename*=UTF-8''"+quote(filename,safe=''))
+                self.send_header('Content-Length',str(length))
+                self.send_header('Cache-Control','no-store')
+                self.send_header('X-Content-Type-Options','nosniff')
+                self.end_headers();sent=True
+                remaining=length
+                while remaining:
+                    block=process.stdout.read(min(256*1024,remaining))
+                    if not block:break
+                    self.wfile.write(block)
+                    remaining-=len(block)
+            except (OSError,ValueError,subprocess.SubprocessError) as exc:
+                if not sent:
+                    self.json({'error':'Unable to download file: '+str(exc)[:180]},503)
+            finally:
+                if process:
+                    if process.poll() is None:process.kill()
+                    try:process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:pass
+            return
         if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return
         if path=='/api/pinas-upgrade':
             _,session=self.session()
@@ -1275,6 +1320,19 @@ def main():
         # Hard-link is no-clobber and atomic on the same filesystem.
         os.link(stage,dest,follow_symlinks=False);stage.unlink();meta.unlink()
         print('{"ok":true}');return
+    if action=='download_stream':
+        if not target.is_file() or target.is_symlink() or not stat.S_ISREG(target.stat().st_mode):
+            raise ValueError('Only ordinary files may be downloaded')
+        with target.open('rb') as source:
+            size=os.fstat(source.fileno()).st_size
+            sys.stdout.buffer.write((json.dumps({'size':size})+'\n').encode())
+            sys.stdout.buffer.flush()
+            while True:
+                block=source.read(256*1024)
+                if not block:break
+                sys.stdout.buffer.write(block)
+            sys.stdout.buffer.flush()
+        return
     if action=='download_chunk':
         offset=q.get('offset');size=q.get('size')
         if not isinstance(offset,int) or offset<0 or not isinstance(size,int) or size<1 or size>512*1024:raise ValueError('Invalid download range')

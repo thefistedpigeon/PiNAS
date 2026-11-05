@@ -780,10 +780,11 @@ async function renderFiles(){
  const progress=(done,total,filename,start)=>{panel.hidden=false;bar.style.width=(total?Math.min(100,100*done/total):0)+'%';const speed=done/Math.max(.2,(Date.now()-start)/1000);label.textContent=`${filename} · ${fmt(done)} / ${fmt(total)} · ${fmt(speed)}/s`+(speed&&done<total?` · ${Math.ceil((total-done)/speed)}s remaining`:'')};
  document.getElementById('transfer-cancel').onclick=()=>{if(activeTransfer)activeTransfer.cancelled=true};
  async function downloadFile(path,name,size){
-   const transfer={cancelled:false};activeTransfer=transfer;const started=Date.now(),chunk=384*1024;
-   try{const parts=[];let offset=0;do{if(transfer.cancelled)throw Error('Download cancelled');const r=await call('download_chunk',{path,offset,size:chunk});const binary=atob(r.content);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);parts.push(bytes);offset+=bytes.length;progress(offset,r.total,name,started);if(!bytes.length||offset>=r.total)break}while(true);
-     const blob=new Blob(parts,{type:'application/octet-stream'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-   }catch(e){msg.textContent=e.message}finally{panel.hidden=true;activeTransfer=null}
+   // The browser streams directly to its download manager: no huge Blob,
+   // repeated sudo/pdbedit process per chunk or temporary in-memory copies.
+   const url='/api/file-download?share='+encodeURIComponent(currentShare)+'&path='+encodeURIComponent(path);
+   const anchor=document.createElement('a');anchor.href=url;anchor.download=name;
+   document.body.append(anchor);anchor.click();anchor.remove();
  }
  async function uploadFile(file,index,total){
    const transfer={cancelled:false};activeTransfer=transfer;let token=null,offset=0;const started=Date.now(),chunk=384*1024;
