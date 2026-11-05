@@ -127,6 +127,43 @@ def install(args):
     if args.lan:print(f'LAN TLS MODE: open https://<PI-IP>:{args.port}. Certificate is self-signed; use the .local hostname for name matching. Do not expose this port to the internet.')
     else:print('Localhost-only mode; re-run installer with --lan to enable direct LAN access for testing.')
 
+class PiNASProtocolServer(ThreadingHTTPServer):
+    """Accept HTTPS and redirect plain HTTP on the same bound port.
+
+    TLS detection happens per connection in the existing server's worker
+    thread, so a slow plaintext connection cannot block the accept loop.
+    No second listener, privilege or extra daemon is required.
+    """
+    daemon_threads=True
+    tls_context=None
+
+    def finish_request(self,request,client_address):
+        if self.tls_context is None:
+            return super().finish_request(request,client_address)
+        try:
+            request.settimeout(5)
+            initial=request.recv(1,socket.MSG_PEEK)
+            if initial==b'\x16':
+                with self.tls_context.wrap_socket(request,server_side=True) as secure:
+                    secure.settimeout(None)
+                    super().finish_request(secure,client_address)
+                return
+            # Redirect ordinary HTTP methods only. Never reflect an untrusted
+            # Host header or unvalidated request path into the Location value.
+            if initial in (b'G',b'H',b'P',b'O',b'D',b'T',b'C'):
+                local_ip=request.getsockname()[0]
+                address=('['+local_ip+']') if ':' in local_ip else local_ip
+                location='https://'+address+':'+str(self.server_address[1])+'/'
+                response=('HTTP/1.1 307 Temporary Redirect\r\n'
+                          'Location: '+location+'\r\n'
+                          'Content-Length: 0\r\n'
+                          'Connection: close\r\n'
+                          'Cache-Control: no-store\r\n\r\n')
+                request.sendall(response.encode('ascii'))
+        except (OSError,ssl.SSLError,ValueError):
+            # Unknown/failed TLS handshakes must not be treated as HTTP.
+            return
+
 def main():
     ap=argparse.ArgumentParser(description='PiNAS Raspberry Pi NAS')
     ap.add_argument('--lan',action='store_true',help='Bind HTTPS server to LAN interfaces');ap.add_argument('--install',action='store_true');ap.add_argument('--serve',action='store_true');ap.add_argument('--tls',action='store_true');ap.add_argument('--skip-packages',action='store_true');ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=8765)
@@ -139,12 +176,12 @@ def main():
     if a.serve:
         if a.host not in ('127.0.0.1','::1','0.0.0.0'):sys.exit('Unsupported bind address.')
         if a.host=='0.0.0.0' and not a.tls:sys.exit('LAN listening requires HTTPS (--tls)')
-        server=ThreadingHTTPServer((a.host,a.port),Handler)
+        server=PiNASProtocolServer((a.host,a.port),Handler)
         if a.tls:
             context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.minimum_version=ssl.TLSVersion.TLSv1_2
             context.load_cert_chain(str(TLS_CERT),str(TLS_KEY))
-            server.socket=context.wrap_socket(server.socket,server_side=True)
+            server.tls_context=context
         print('PiNAS running on %s://%s:%s'%('https' if a.tls else 'http',a.host,a.port))
         threading.Thread(target=cpu_sampler,daemon=True).start();server.serve_forever();return
     ap.print_help()

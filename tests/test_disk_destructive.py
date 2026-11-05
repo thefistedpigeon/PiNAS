@@ -36,7 +36,7 @@ def load_helper():
 class DiskDestructiveTests(unittest.TestCase):
     def test_helper_and_bundle_compile(self):
         compile(HELPER,'pinas-disk-erase','exec')
-        self.assertIn("VERSION='1.0.8'",CORE)
+        self.assertIn("VERSION='1.0.9'",CORE)
 
     def test_web_requires_explicit_yes_and_current_password(self):
         self.assertIn('id="disk-danger-yes" type="checkbox" required',PAGE)
@@ -108,9 +108,8 @@ class DiskDestructiveTests(unittest.TestCase):
         part={'path':'/dev/sdb1'}
         with mock.patch.object(namespace['Path'],'is_block_device',return_value=True):
             namespace['erase_signatures']([disk,part])
-        self.assertEqual(calls[0],('wipefs','--all','--force','/dev/sdb1'))
-        self.assertEqual(calls[1],('wipefs','--all','--force','/dev/sdb'))
-        self.assertEqual(calls[2],('blockdev','--rereadpt','/dev/sdb'))
+        self.assertEqual(calls,[('wipefs','--lock=yes','--all','--force','/dev/sdb1','/dev/sdb')])
+        self.assertNotIn("blockdev','--rereadpt",HELPER)
 
     def test_no_secure_erase_claim_and_only_allowlisted_formatters(self):
         self.assertIn('quick wipe, NOT a secure overwrite',PAGE)

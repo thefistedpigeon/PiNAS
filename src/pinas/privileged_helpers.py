@@ -113,12 +113,16 @@ def checked_disk(device,roots,expected_size):
 def erase_signatures(items):
     # This is a quick wipe, NOT a secure overwrite of user data.
     # Erase nested filesystem signatures first, then partition metadata.
+    targets=[]
     for item in reversed(items):
         target=item.get('path')
         if not target or not Path(target).is_block_device():
             raise ValueError('Disk topology changed; operation aborted')
-        run('wipefs','--all','--force',target,timeout=45)
-    run('blockdev','--rereadpt',items[0]['path'],timeout=20)
+        targets.append(target)
+    # wipefs itself asks the kernel to re-read a changed partition table.
+    # Supplying partitions before their parent in one call avoids redundant
+    # BLKRRPART calls, which can return EBUSY after a successful signature wipe.
+    run('wipefs','--lock=yes','--all','--force',*targets,timeout=90)
 
 def main():
     if os.geteuid()!=0 or len(sys.argv)!=2 or sys.argv[1] not in ('wipe','format'):
@@ -136,8 +140,8 @@ def main():
         raise ValueError('Unsupported target filesystem')
     if action=='wipe' and filesystem is not None:
         raise ValueError('Wipe does not take a filesystem')
-    if not shutil.which('wipefs') or not shutil.which('blockdev'):
-        raise ValueError('Disk maintenance tools are missing')
+    if not shutil.which('wipefs'):
+        raise ValueError('wipefs is not installed')
     if action=='format' and not shutil.which({'ext4':'mkfs.ext4','xfs':'mkfs.xfs','btrfs':'mkfs.btrfs'}[filesystem]):
         raise ValueError('Selected filesystem formatter is not installed')
     with open('/run/lock/pinas-storage-destructive.lock','w') as lock:
