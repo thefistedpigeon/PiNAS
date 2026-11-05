@@ -733,13 +733,13 @@ def main():
         if target_root.stat().st_uid!=0 or (target_root.stat().st_mode & 0o022):
             raise ValueError('Unsafe new shares directory')
         oldconf=CONF.read_text();olddb=DB.read_text()
-        section=re.compile(r'(?m)^\\['+re.escape(name)+r'\\][ \\t]*\\n(?:(?!\\[).*(?:\\n|$))*')
+        section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
         sections=list(section.finditer(oldconf))
         if len(sections)!=1:raise ValueError('Managed Samba section missing or ambiguous')
         previous=sections[0].group(0)
-        old_path='   path = '+str(legacy)+'\\n'
+        old_path='   path = '+str(legacy)+'\n'
         if previous.count(old_path)!=1:raise ValueError('Samba path differs from recorded legacy folder')
-        newconf=oldconf[:sections[0].start()]+previous.replace(old_path,'   path = '+str(target)+'\\n')+oldconf[sections[0].end():]
+        newconf=oldconf[:sections[0].start()]+previous.replace(old_path,'   path = '+str(target)+'\n')+oldconf[sections[0].end():]
         moved=False
         try:
             legacy.rename(target);moved=True
