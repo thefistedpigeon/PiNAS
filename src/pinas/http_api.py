@@ -742,6 +742,12 @@ def main():
             raise ValueError('Share is not using the legacy directory')
         if legacy_root.is_symlink() or legacy.is_symlink() or not legacy.is_dir() or legacy.stat().st_uid!=0:
             raise ValueError('Unsafe legacy share directory')
+        if legacy.stat().st_dev!=mount.stat().st_dev:
+            raise ValueError('Legacy share is on another filesystem')
+        # Refuse moving a tree with nested mountpoints or bind mounts.
+        mounted=run(['/usr/bin/findmnt','-rn','-o','TARGET']).stdout.splitlines()
+        if any(point==str(legacy) or point.startswith(str(legacy)+'/') for point in mounted):
+            raise ValueError('Share contains an active mountpoint; unmount it first')
         if target_root.is_symlink() or target.exists() or target.is_symlink():
             raise ValueError('Destination already exists or is unsafe')
         # No existing folder is adopted or overwritten.
