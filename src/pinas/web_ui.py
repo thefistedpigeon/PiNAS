@@ -50,6 +50,7 @@ nav button{border-radius:0;position:relative;font-size:calc(1rem + 1.5px)}nav bu
 .media-checkbox{display:flex;gap:10px;align-items:center;padding:8px 0}
 #ms-form h3{margin-top:22px}
 #ms-folders{width:100%;min-height:110px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--radius-sm);font:inherit;padding:12px;resize:vertical}
+.media-picker{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}.media-picker .field{flex:1 1 220px}.media-picker .btn{margin-bottom:12px}
 </style></head><body><div id="app"></div><script>
 const app=document.getElementById('app');let info={},cfg={},cpu={},page='Overview',csrf='',role='admin',username='',displayName='',refreshTimer=null,lastNavRect=null;const nav=['Overview','Storage','Users','Shares'];
 // Navigation is derived from actual mounted NAS volumes, not a setup flag.
@@ -205,7 +206,9 @@ const MEDIA_FIELDS=[
  ['tivo_discovery','TiVo discovery (bonjour or beacon)','text'],
  ['inotify','Watch media changes','checkbox'],['strict_dlna','Strict DLNA mode','checkbox'],
  ['merge_media_dirs','Merge media folders','checkbox'],
- ['enable_subtitles','Enable subtitles','checkbox'],['enable_tivo','Enable TiVo','checkbox']
+ ['enable_subtitles','Enable subtitles','checkbox'],['enable_tivo','Enable TiVo','checkbox'],
+ ['enable_thumbnail','Generate thumbnails (if compiled in)','checkbox'],['thumbnail_width','Thumbnail width','number'],
+ ['thumbnail_quality','Thumbnail quality','number'],['enable_thumbnail_filmstrip','Thumbnail filmstrip','checkbox']
 ];
 let mediaBusy=false;
 async function loadMediaServer(){
@@ -218,7 +221,9 @@ async function loadMediaServer(){
    panel.querySelector('#ms-install').onclick=()=>mediaAction('install',true);
    return;
   }
-  const opts=result.settings||{},defaultValue={friendly_name:info.hostname||'PiNAS',port:8200,notify_interval:895,max_connections:50};
+  const opts=result.settings||{},defaultValue={friendly_name:info.hostname||'PiNAS',port:8200,notify_interval:895,max_connections:50,inotify:'yes',enable_subtitles:'yes'};
+  const shareOptions=(info.share_details||[]).filter(s=>typeof s.folder==='string'&&s.folder.startsWith('/mnt/pinas/')).map(s=>
+    '<option value="'+esc(s.folder)+'">'+esc(s.name||s.folder)+'</option>').join('');
   const folderActions=(opts.media_dir||[]).map(item=>{
    const path=item.replace(/^[AVP],/,'');
    return '<div class="line"><span class="small">'+esc(path)+'</span><button type="button" class="btn outline" data-media-grant="'+esc(path)+'">Grant DLNA read access</button></div>';
@@ -231,6 +236,7 @@ async function loadMediaServer(){
   panel.innerHTML='<div class="line"><strong>Service status</strong><span class="pill '+(result.state==='active'?'good':'')+'">'+esc(result.state==='active'?'Running':result.state)+'</span></div>'
    +'<div class="media-actions"><button class="btn outline" data-media-action="start">Start</button><button class="btn outline" data-media-action="stop">Stop</button><button class="btn outline" data-media-action="restart">Restart</button><button class="btn outline" data-media-action="rescan">Restart scan</button><button class="btn outline" data-media-action="rebuild">Rebuild library</button></div>'
    +'<form id="ms-form"><h3>Media folders</h3><p class="hint">One full folder path per line under /mnt/pinas/. Optionally prefix A, V or P followed by a comma for audio, video or photos.</p>'
+   +'<div class="media-picker"><label class="field">Choose an existing NAS share<select id="ms-preset-share"><option value="">Select a share…</option>'+shareOptions+'</select></label><label class="field">Media type<select id="ms-preset-type"><option value="">All media</option><option value="A">Audio</option><option value="V">Video</option><option value="P">Photos</option></select></label><button type="button" class="btn outline" id="ms-preset-add">Add folder</button></div>'
    +'<label class="field">Shared folders<textarea id="ms-folders" rows="5" placeholder="V,/mnt/pinas/UUID/pinas-shares/Movies">'+esc((opts.media_dir||[]).join('\n'))+'</textarea></label>'
    +'<p class="hint"><strong>Privacy:</strong> DLNA discovery is intended for trusted local networks and does not enforce NAS user accounts. Only add folders you intend to expose. The minidlna service account must have read permission; PiNAS only grants read permissions when you explicitly choose Grant DLNA read access below.</p>'
    +'<h3>Folder permissions</h3>'+folderActions+'<h3>Settings</h3><div class="media-fields">'+fields+'</div><div class="modal-actions"><button class="btn" type="submit">Save settings</button><button type="button" class="btn outline" id="ms-refresh">Refresh</button></div></form><p id="ms-message" role="status"></p>';
@@ -239,6 +245,13 @@ async function loadMediaServer(){
    button.onclick=()=>mediaAction(button.dataset.mediaAction,false);
   });
   panel.querySelectorAll('[data-media-grant]').forEach(button=>button.onclick=()=>mediaAction('grant',true,{path:button.dataset.mediaGrant}));
+  panel.querySelector('#ms-preset-add').onclick=()=>{
+   const folder=panel.querySelector('#ms-preset-share').value,type=panel.querySelector('#ms-preset-type').value;
+   if(!folder)return;
+   const input=panel.querySelector('#ms-folders'),entry=(type?type+',':'')+folder;
+   const lines=input.value.split('\n').map(x=>x.trim()).filter(Boolean);
+   if(!lines.includes(entry))input.value=lines.concat(entry).join('\n');
+  };
   panel.querySelector('#ms-refresh').onclick=loadMediaServer;
   panel.querySelector('#ms-form').onsubmit=async event=>{
    event.preventDefault();
