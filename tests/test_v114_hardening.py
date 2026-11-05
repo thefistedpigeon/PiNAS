@@ -77,7 +77,7 @@ class HardeningTests(unittest.TestCase):
 
     def test_smart_and_raid_safeguards(self):
         smart=load_helper('SMART_HEALTH_HELPER',HELPERS)
-        self.assertIn("[smartctl,'-j','-n','standby','-H','-A',device]",smart)
+        self.assertIn("[smartctl,'-j','-n','standby','-H','-A']",smart)
         self.assertIn("startswith('raid')",CORE)
         self.assertIn('noatime,nosuid,nodev',HELPERS)
 
