@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Current release: PiNAS v1.1.2.** This quality-of-life release fixes idle-session expiry, schedules SMART health checks on Overview and Storage automatically, and replaces monthly update-history retention with 1–52 weeks (12-week default). It also simplifies the automatic update service's healthy-status text. PiNAS remains lightweight and NAS-focused; keep independent backups.
+> **Current release: PiNAS v1.1.3.** This release adds downloadable APT update-history logs, guided account removal, and separate Stop Sharing and permanent Delete Folder operations. PiNAS remains lightweight and NAS-focused; keep independent backups, especially before deleting folders.
 
 ## Features
 
@@ -26,6 +26,7 @@
 - Track manual and scheduled APT upgrade attempts in a separate, bounded SQLite history database (1–52 weeks retention; 12 weeks by default).
 - Show automatic-update timer and one-shot service status on Updates and Overview. Failed units can be restarted after administrator re-authentication.
 - Installed update history is shown as compact, collapsed date-only cards; expand an entry to view each package and the APT summary.
+- **Download Logs** exports all retained recorded update attempts (including package names and APT summaries) to a locally generated UTF-8 text file. The download requires an active administrator session and never contacts external services.
 
 ### Sessions
 - Session idle timeouts follow the selected 5/10/15/30/60-minute setting. Automatic polling does not extend sessions; genuine browser activity renews them, and the WebUI returns to the login screen on expiry.
@@ -44,6 +45,9 @@
 **Caution:** Destructive operations can cause permanent data loss. Confirm drive identities, RAID membership and available backups before applying changes. Not every filesystem or RAID workflow has been validated on all hardware.
 
 ### Users, shares and files
+- Remove NAS users from the Users page with administrator password and exact username confirmation. Account deletion removes Samba and its managed Linux identity, invalidates active NAS-user sessions, and preserves share folders and files. Remove the user from all share permissions first; private home shares must be stopped before deleting the account.
+- Secondary PiNAS administrators can be removed using the same confirmation flow; the primary administrator and currently signed-in administrator are protected.
+- **Stop Sharing** removes a PiNAS-managed SMB share without deleting any folder or file. **Delete Folder** removes the SMB share and permanently deletes its exact managed folder and contents after explicit confirmation, password re-entry and independent root-helper checks (system/boot disks and nested mounts are protected). Folder deletion cannot be undone.
 - Create and manage NAS users and Samba (SMB) shares.
 - Configure share access for selected users.
 - Browser-based file explorer for authorised share users, with folder creation, upload, rename, delete and refresh.
