@@ -6,6 +6,8 @@ system users, Samba configuration, ACLs or on-disk shares are modified.
 import ast
 from pathlib import Path
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 CORE=(ROOT/'src/pinas/core.py').read_text()
@@ -17,6 +19,9 @@ HELPER=ast.literal_eval(next(item.value for item in ast.parse(API).body
 USER_HELPER=ast.literal_eval(next(item.value for item in ast.parse(API).body
     if isinstance(item,ast.Assign)
     and any(isinstance(t,ast.Name) and t.id=='NAS_USER_HELPER' for t in item.targets)))
+FILE_HELPER=ast.literal_eval(next(item.value for item in ast.parse(API).body
+    if isinstance(item,ast.Assign)
+    and any(isinstance(t,ast.Name) and t.id=='NAS_FILES_HELPER' for t in item.targets)))
 
 class PermissionsUnificationTests(unittest.TestCase):
     def test_linux_samba_user_identity_is_provisioned_together(self):
@@ -61,9 +66,34 @@ class PermissionsUnificationTests(unittest.TestCase):
         self.assertIn("run(['/usr/bin/testparm','-s'])",HELPER)
         self.assertIn("run(['/usr/bin/systemctl','reload','smbd'])",HELPER)
 
+
+    def test_non_pinas_samba_accounts_are_excluded_from_nas_identity(self):
+        scope={'__name__':'pinas_user_helper_regression'}
+        exec(compile(USER_HELPER,'pinas-nas-user','exec'),scope)
+        users={'alice':SimpleNamespace(pw_gid=771,pw_shell='/usr/sbin/nologin',pw_uid=1001),
+               'external':SimpleNamespace(pw_gid=332,pw_shell='/usr/sbin/nologin',pw_uid=1002),
+               'shelluser':SimpleNamespace(pw_gid=771,pw_shell='/bin/bash',pw_uid=1003)}
+        with patch.object(scope['grp'],'getgrnam',return_value=SimpleNamespace(gr_gid=771)), \
+             patch.object(scope['pwd'],'getpwnam',side_effect=lambda name:users[name]):
+            scope['run']=lambda *args,**kwargs:SimpleNamespace(
+                stdout='alice:1001:\nexternal:1002:\nshelluser:1003:\n')
+            result=scope['samba_users']()
+        self.assertEqual(result,[{'name':'alice','uid':'1001'}])
+
+    def test_web_file_broker_enforces_same_managed_linux_identity(self):
+        scope={'__name__':'pinas_file_helper_regression'}
+        exec(compile(FILE_HELPER,'pinas-nas-files','exec'),scope)
+        self.assertIn("person.pw_gid!=nas_gid",FILE_HELPER)
+        with patch.object(scope['grp'],'getgrnam',return_value=SimpleNamespace(gr_gid=771)), \
+             patch.object(scope['pwd'],'getpwnam',return_value=SimpleNamespace(
+                 pw_gid=332,pw_shell='/usr/sbin/nologin')):
+            with self.assertRaisesRegex(ValueError,'PiNAS-managed'):
+                scope['valid_user']('external')
+
     def test_restricted_helper_and_version(self):
         compile(HELPER,'pinas-nas-share','exec')
         compile(USER_HELPER,'pinas-nas-user','exec')
+        compile(FILE_HELPER,'pinas-nas-files','exec')
         self.assertIn("VERSION='1.1.1'",CORE)
         self.assertIn("fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)",HELPER)
 
