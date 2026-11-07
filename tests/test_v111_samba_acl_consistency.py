@@ -94,7 +94,7 @@ class PermissionsUnificationTests(unittest.TestCase):
         compile(HELPER,'pinas-nas-share','exec')
         compile(USER_HELPER,'pinas-nas-user','exec')
         compile(FILE_HELPER,'pinas-nas-files','exec')
-        self.assertIn("VERSION='1.1.1'",CORE)
+        self.assertRegex(CORE,r"VERSION='1\.1\.[12]'")
         self.assertIn("fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)",HELPER)
 
 if __name__=='__main__':

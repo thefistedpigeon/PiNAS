@@ -74,7 +74,8 @@ class DiskDiagnosticsTests(unittest.TestCase):
         self.assertIn("'sat'",smart)
         self.assertIn("entry['message']",smart)
         self.assertIn("data-smart-detail",UI)
-        self.assertIn("id=\"refresh-disk-health-storage\"",UI)
+        self.assertIn("disk-health-storage-message",UI)
+        self.assertIn('autoDiskHealth()',UI)
 
     def test_power_helper_is_narrow_and_delayed(self):
         power=helper('POWER_HELPER',PRIV)

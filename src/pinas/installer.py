@@ -26,7 +26,7 @@ def expand_modules(target):
         ('pinas-power',POWER_HELPER,["reboot","shutdown"]),
         ('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"]),
         ('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily",
-             "schedule weekly","schedule monthly","reboot","prune 6","prune 12",
+             "schedule weekly","schedule monthly","reboot","prune *",
              "restart-auto timer","restart-auto service"]),
     )
     for name,source,allowed in specifications:
@@ -142,7 +142,7 @@ def install(args):
     smart_helper=install_privileged_helper('pinas-smart-health',SMART_HEALTH_HELPER,[""])
     install_privileged_helper('pinas-file-types',FILE_TYPE_SCAN_HELPER,["scan *"])
     install_privileged_helper('pinas-power',POWER_HELPER,["reboot","shutdown"])
-    apt_helper=install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily","schedule weekly","schedule monthly","reboot","prune 6","prune 12","restart-auto timer","restart-auto service"])
+    apt_helper=install_privileged_helper('pinas-apt-index',APT_INDEX_HELPER,["refresh","upgrade","firmware-check","schedule off","schedule daily","schedule weekly","schedule monthly","reboot","prune *","restart-auto timer","restart-auto service"])
     auto_service=Path('/etc/systemd/system/pinas-auto-updates.service')
     auto_service.write_text('[Unit]\nDescription=PiNAS scheduled OS updates\nAfter=network-online.target\nWants=network-online.target\n[Service]\nType=oneshot\nExecStart=/usr/local/libexec/pinas-apt-index automatic\nEnvironment=DEBIAN_FRONTEND=noninteractive\n')
     os.chown(auto_service,0,0);os.chmod(auto_service,0o644)
