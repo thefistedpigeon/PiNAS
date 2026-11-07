@@ -511,10 +511,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Unknown NAS user.'},409);return
             if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
                 self.json({'error':'Only PiNAS-managed shares can be edited.'},404);return
-            try:edit_nas_share(name,new_name,access,public,public_write)
-            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
-            DISCOVERY_AT=0
-            self.json({'ok':True,'share':new_name});return
+            try:
+                # Access edits must also reconcile the Linux ACLs on existing
+                # content. Background execution avoids web and Pi 3B timeouts.
+                def edit_with_acl_sync():
+                    edit_nas_share(name,new_name,access,public,public_write)
+                    repair=privileged_command('pinas-nas-share','repair',
+                        payload=json.dumps({'name':new_name}),timeout=1800)
+                    if repair.returncode:
+                        raise RuntimeError('Samba share was updated, but Linux ACL reconciliation failed: '+
+                                           (repair.stderr.strip() or 'Please run Repair access for this share')[-550:])
+                    global DISCOVERY_AT
+                    DISCOVERY_AT=0
+                    return {'ok':True,'share':new_name,'acl_synced':True}
+                self.json(start_job(token,'share-edit-acl',edit_with_acl_sync));return
+            except (OSError,ValueError,subprocess.TimeoutExpired,RuntimeError) as exc:
+                self.json({'error':str(exc)},503);return
         if path=='/api/migrate-share':
             if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             name=data.get('name');password=data.get('admin_password')
