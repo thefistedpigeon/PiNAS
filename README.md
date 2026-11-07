@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Current release: PiNAS v1.1.3.** This release adds downloadable APT update-history logs, guided account removal, and separate Stop Sharing and permanent Delete Folder operations. PiNAS remains lightweight and NAS-focused; keep independent backups, especially before deleting folders.
+> **Current release: PiNAS v1.1.4.** This Shares-page consistency update standardises icon-and-text buttons and their order, while preserving the account, sharing and log functionality introduced in v1.1.3. PiNAS remains lightweight and NAS-focused; keep independent backups, especially before deleting folders.
 
 ## Features
 
@@ -45,6 +45,7 @@
 **Caution:** Destructive operations can cause permanent data loss. Confirm drive identities, RAID membership and available backups before applying changes. Not every filesystem or RAID workflow has been validated on all hardware.
 
 ### Users, shares and files
+- The Shares page uses standard icon-and-text buttons: **Create Share** at the top, and **Edit Share → Stop Sharing → Repair Access → Delete Folder** for each share. Stop Sharing and Repair Access use dedicated icons. Legacy folder migration remains separately available when relevant.
 - Remove NAS users from the Users page with administrator password and exact username confirmation. Account deletion removes Samba and its managed Linux identity, invalidates active NAS-user sessions, and preserves share folders and files. Remove the user from all share permissions first; private home shares must be stopped before deleting the account.
 - Secondary PiNAS administrators can be removed using the same confirmation flow; the primary administrator and currently signed-in administrator are protected.
 - **Stop Sharing** removes a PiNAS-managed SMB share without deleting any folder or file. **Delete Folder** removes the SMB share and permanently deletes its exact managed folder and contents after explicit confirmation, password re-entry and independent root-helper checks (system/boot disks and nested mounts are protected). Folder deletion cannot be undone.
