@@ -1,0 +1,35 @@
+name: Build PiNAS v1.1.2 standalone bundle
+on:
+  push:
+    branches: [release/v1.1.2-quality-of-life]
+permissions:
+  contents: write
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build standalone update file
+        run: python3 tools/build_release.py
+      - name: Check syntax, bundle integrity and regression tests
+        run: |
+          python3 tools/build_release.py --check
+          python3 -m compileall -q src/pinas pinas.py tools tests
+          python3 -m unittest discover -s tests -v
+      - name: Commit standalone bundle
+        run: |
+          git add pinas.py
+          if git diff --cached --quiet; then
+            echo 'Standalone bundle is up to date.'
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Build standalone PiNAS v1.1.2 update'
+          git push origin HEAD:release/v1.1.2-quality-of-life
