@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse,parse_qs
 
-VERSION='1.1.1'
+VERSION='1.1.2'
 # A fresh identifier per service process lets browsers detect an update restart,
 # even when the application is updated without changing its version number.
 SERVER_INSTANCE=secrets.token_hex(16)
@@ -89,13 +89,16 @@ UPDATE_STATUS={'running':False,'operation':'','last_check':None,'last_install':N
 
 UPDATE_HISTORY_DB=Path('/var/lib/pinas-update-history/updates.sqlite3')
 
+def valid_history_weeks(value):
+    return value if type(value) is int and 1<=value<=52 else 12
+
 def update_history(limit=40):
     """Read a short recent history, with no write transactions or periodic polling."""
     if not UPDATE_HISTORY_DB.is_file():return []
     try:
         with sqlite3.connect(UPDATE_HISTORY_DB.as_uri()+'?mode=ro',uri=True,timeout=2) as db:
             db.row_factory=sqlite3.Row
-            rows=db.execute('SELECT started_at,completed_at,source,result,packages,summary FROM update_events ORDER BY id DESC LIMIT ?', (min(max(int(limit),1),100),)).fetchall()
+            rows=db.execute('SELECT started_at,completed_at,source,result,packages,summary FROM update_events WHERE started_at >= ? ORDER BY id DESC LIMIT ?', (int(time.time())-604800*valid_history_weeks(load().get('update_history_weeks',12)),min(max(int(limit),1),100))).fetchall()
         history=[]
         for row in rows:
             try:packages=json.loads(row['packages'])
@@ -652,7 +655,7 @@ def service_health():
                 item.update(state='warning',detail='Last run failed ('+str(result or active)[:48]+')')
             elif unit=='pinas-auto-updates.service':
                 if active=='activating':item.update(state='pending',detail='Scheduled update running')
-                elif active in ('inactive','active'):item.update(state='healthy',detail='Last run succeeded or waiting for next schedule')
+                elif active in ('inactive','active'):item.update(state='healthy',detail='Last run succeeded')
                 else:item.update(state='unknown',detail='State: '+str(active)[:32])
             elif active=='active':
                 item.update(state='healthy',detail='Active ('+fields.get('SubState','running')+')')
