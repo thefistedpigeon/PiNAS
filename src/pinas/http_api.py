@@ -1011,12 +1011,30 @@ def main():
             if not access or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or p not in ('ro','rw') for u,p in access.items()):
                 raise ValueError('Invalid saved share permissions')
             entries=['u:'+u+':'+('rwX' if p=='rw' else 'rX') for u,p in access.items()]
-        # POSIX ACL permissions are re-applied to existing content, not
-        # replaced wholesale; custom ACLs, ownership and file modes remain.
-        run(['/usr/bin/setfacl','-R','-P','-m',','.join(entries),str(folder)],timeout=150)
-        defaults=[entry.replace('X','x') for entry in entries]
+        # Replace only PiNAS-managed identities on existing files and folders.
+        # Otherwise removed users can retain historical POSIX ACL grants.
+        samba=run(['/usr/bin/pdbedit','-L']).stdout.splitlines()
+        managed=[]
+        for line in samba:
+            username=line.split(':',1)[0]
+            if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',username):continue
+            try:
+                account=pwd.getpwnam(username)
+                if account.pw_shell in ('/usr/sbin/nologin','/sbin/nologin'):
+                    managed.append(username)
+            except KeyError:pass
+        managed=sorted(set(managed)|set(access)|{'nobody'})
+        # Clear previously granted PiNAS user ACLs and default entries.
+        # Keep filesystem owner, other unrelated ACL identities and file contents.
+        remove=','.join('u:'+name for name in managed)
+        run(['/usr/bin/setfacl','-R','-P','-x',remove,str(folder)],timeout=420)
         run(['/usr/bin/find',str(folder),'-xdev','-type','d','-exec',
-             '/usr/bin/setfacl','-m',','.join('d:'+e for e in defaults),'{}','+'],timeout=150)
+             '/usr/bin/setfacl','-x',','.join('d:u:'+name for name in managed),'{}','+'],timeout=420)
+        # Enforce no access for group/other, with explicit named user rules.
+        run(['/usr/bin/setfacl','-R','-P','-m','g::---,o::---,'+','.join(entries),str(folder)],timeout=420)
+        defaults=['d:u::rwx','d:g::---','d:o::---']+['d:'+entry.replace('X','x') for entry in entries]
+        run(['/usr/bin/find',str(folder),'-xdev','-type','d','-exec',
+             '/usr/bin/setfacl','-m',','.join(defaults),'{}','+'],timeout=420)
         print(json.dumps({'ok':True,'name':name}));return
     if len(sys.argv)==2 and sys.argv[1]=='edit':
         raw=sys.stdin.read(8193)
@@ -1063,8 +1081,8 @@ def main():
         try:
             run(['/usr/bin/setfacl','-b',str(folder)])
             run(['/usr/bin/setfacl','-k',str(folder)])
-            os.chmod(folder,0o777 if public else 0o700)
-            # chmod after setfacl would collapse the ACL mask and deny named users.
+            os.chmod(folder,0o700)
+            # ACL named users (including guest nobody) provide access; no world write.
             run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
             if new_smb!=old_smb:atomic(SMB,new_smb,0o644)
             atomic(CONF,newconf,0o644)
@@ -1160,11 +1178,10 @@ def main():
     try:
         # Root-owned folder; Samba creates files as authenticated Unix users.
         os.chown(folder,0,0)
-        os.chmod(folder,0o777 if public else 0o700)
+        os.chmod(folder,0o700)
         acl=['u::rwx','g::---','o::---','m::rwx']+(['u:nobody:'+('rwx' if public_write else 'r-x')] if public else [f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()])
         default=['d:'+entry for entry in acl]
         run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
-        if public:os.chmod(folder,0o777)
         if amended!=original:atomic(SMB,amended,0o644)
         atomic(CONF,oldconf+stanza,0o644)
         run(['/usr/bin/testparm','-s'])
