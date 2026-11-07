@@ -30,14 +30,13 @@ class OverviewDiskHealthTests(unittest.TestCase):
         self.assertNotIn('<h2>Disk health</h2>',PAGE)
         self.assertNotIn('id="smart-health-results"',PAGE)
         self.assertNotIn('id="check-smart-health"',PAGE)
-        self.assertIn('id="refresh-disk-health"',PAGE)
+        self.assertNotIn('id="refresh-disk-health"',PAGE)
         self.assertIn("if(page==='Storage')",PAGE)
 
-    def test_disk_health_button_icon_and_spacing(self):
+    def test_disk_health_card_stays_in_overview_without_buttons(self):
         self.assertIn('class="chart-title storage-summary-heading"',PAGE)
-        self.assertIn('class="btn outline button-with-icon" id="refresh-disk-health"',PAGE)
-        self.assertIn('<span>Check disk health</span>',PAGE)
-        self.assertIn('M18.6 20.44',PAGE)
+        self.assertNotIn('<span>Check disk health</span>',PAGE)
+        self.assertNotIn('id="refresh-disk-health-storage"',PAGE)
         self.assertIn('.storage-summary-heading{padding-bottom:16px;margin-bottom:14px;',PAGE)
 
     def test_hover_has_accent_colour_and_icon_inheritance(self):
@@ -72,15 +71,16 @@ class OverviewDiskHealthTests(unittest.TestCase):
         api=(ROOT/'src/pinas/http_api.py').read_text(encoding='utf-8')
         self.assertIn("SERVER_INSTANCE=secrets.token_hex(16)",core)
         self.assertIn("if path=='/api/pinas-build':self.json({'version':VERSION,'instance':SERVER_INSTANCE});return",api)
-        self.assertIn("self.send_header('Cache-Control','no-store')",api)
+        self.assertIn("self.send_header('Cache-Control',cache_control)",api)
 
-    def test_smart_checked_on_demand_from_overview_and_storage(self):
+    def test_smart_automatically_checks_overview_storage_and_10_min_periodically(self):
         self.assertEqual(PAGE.count("fetch('/api/smart-health'"),1)
         self.assertIn("if(page==='Overview'){document.getElementById('refresh-service-health')",PAGE)
-        self.assertIn("addEventListener('click',checkSmartHealth)",PAGE)
-        self.assertIn("refreshServiceHealth();displayDiskHealth();",PAGE)
-        self.assertNotIn("displayDiskHealth();checkSmartHealth()",PAGE)
-        self.assertIn("id=\"refresh-disk-health-storage\"",PAGE)
+        self.assertIn('function autoDiskHealth()',PAGE)
+        self.assertIn('refreshServiceHealth();autoDiskHealth()',PAGE)
+        self.assertIn('bindStorageScans();autoDiskHealth()',PAGE)
+        self.assertIn('Date.now()-diskSmartLastChecked>=600000',PAGE)
+        self.assertIn("setInterval(()=>{if(['Overview','Storage'].includes(page)",PAGE)
         self.assertIn('const entries=new Map(',PAGE)
         self.assertIn('entries.get(panel.dataset.smartDevice)',PAGE)
         self.assertIn("!result.installed?",PAGE)
