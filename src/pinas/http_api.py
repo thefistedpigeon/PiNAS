@@ -722,12 +722,19 @@ def run(argv, **kwargs):
     return subprocess.run(argv, check=True, timeout=20, **kwargs)
 
 def samba_users():
+    # Only accounts belonging to PiNAS's dedicated NAS group are managed here.
+    try:nas_gid=grp.getgrnam('pinas-nas').gr_gid
+    except KeyError:return []
     p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
     result=[]
     for line in p.stdout.splitlines():
         fields=line.split(':',2)
-        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
-            result.append({'name':fields[0],'uid':fields[1]})
+        if len(fields)<2 or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):continue
+        try:
+            account=pwd.getpwnam(fields[0])
+            if account.pw_gid!=nas_gid or account.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):continue
+        except KeyError:continue
+        result.append({'name':fields[0],'uid':str(account.pw_uid)})
     return sorted(result,key=lambda x:x['name'])
 
 if __name__=='__main__':
