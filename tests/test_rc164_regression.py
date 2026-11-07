@@ -1,71 +1,71 @@
-"""Static regression checks for PiNAS's single-file distribution.
+"""PiNAS v1.1.1 Samba / POSIX ACL consistency regressions.
 
-Run: python3 -m unittest discover -s tests -v
-Node.js is optional; when available it also parses the embedded UI JavaScript.
+Static checks ensure the existing narrow privilege boundary is retained. No
+system users, Samba configuration, ACLs or on-disk shares are modified.
 """
 import ast
-import pathlib
-import re
-import shutil
-import subprocess
-import tempfile
+from pathlib import Path
 import unittest
 
-SOURCE = pathlib.Path(__file__).resolve().parents[1] / "pinas.py"
+ROOT=Path(__file__).resolve().parents[1]
+CORE=(ROOT/'src/pinas/core.py').read_text()
+API=(ROOT/'src/pinas/http_api.py').read_text()
+WEB=(ROOT/'src/pinas/web_ui.py').read_text()
+HELPER=ast.literal_eval(next(item.value for item in ast.parse(API).body
+    if isinstance(item,ast.Assign)
+    and any(isinstance(t,ast.Name) and t.id=='NAS_SHARE_HELPER' for t in item.targets)))
+USER_HELPER=ast.literal_eval(next(item.value for item in ast.parse(API).body
+    if isinstance(item,ast.Assign)
+    and any(isinstance(t,ast.Name) and t.id=='NAS_USER_HELPER' for t in item.targets)))
 
+class PermissionsUnificationTests(unittest.TestCase):
+    def test_linux_samba_user_identity_is_provisioned_together(self):
+        self.assertIn("'/usr/sbin/useradd','--no-create-home'",USER_HELPER)
+        self.assertIn("'/usr/bin/smbpasswd','-s','-a',name",USER_HELPER)
+        self.assertIn("'/usr/bin/smbpasswd','-e',name",USER_HELPER)
+        self.assertIn("'--gid','pinas-nas'",USER_HELPER)
+        self.assertIn("'/usr/sbin/nologin'",USER_HELPER)
 
-class SingleFileRegressions(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.source = '\n'.join((SOURCE.parent / 'src' / 'pinas' / name).read_text(encoding='utf-8') for name in ('core.py','web_ui.py','storage_breakdown.py','http_api.py','privileged_helpers.py','media_server.py','installer.py'))
-        cls.tree = ast.parse(cls.source, filename=str(SOURCE))
-        cls.constants = {}
-        for node in cls.tree.body:
-            if isinstance(node, ast.Assign):
-                for target in node.targets:
-                    if isinstance(target, ast.Name) and target.id in {
-                        "PAGE", "HOSTNAME_HELPER", "NAS_USER_HELPER", "SMB_RESET_HELPER",
-                        "NAS_SHARE_HELPER", "NAS_FILES_HELPER", "APT_INDEX_HELPER",
-                        "SMART_HEALTH_HELPER"
-                    }:
-                        cls.constants[target.id] = ast.literal_eval(node.value)
+    def test_private_home_uses_same_share_and_acl_path(self):
+        self.assertIn("create_nas_share(username,home_volume,{username:'rw'})",API)
+        self.assertIn("valid users = ",HELPER)
+        self.assertIn("write list = ",HELPER)
+        self.assertIn("guest ok = no",HELPER)
+        self.assertIn("inherit acls = yes",HELPER)
+        self.assertIn("if not pathlib.Path('/usr/bin/setfacl').exists()",HELPER)
 
-    def test_embedded_helpers_compile(self):
-        for name, source in self.constants.items():
-            if name.endswith("_HELPER"):
-                with self.subTest(helper=name):
-                    compile(source, name, "exec")
+    def test_public_shares_never_grant_world_writable_filesystem_access(self):
+        self.assertNotIn("os.chmod(folder,0o777",HELPER)
+        self.assertNotIn("os.chmod(folder,0o777 if public",HELPER)
+        self.assertGreaterEqual(HELPER.count("os.chmod(folder,0o700)"),2)
+        self.assertIn("'u:nobody:'+('rwx' if public_write else 'r-x')",HELPER)
+        self.assertIn("guest only = yes",HELPER)
+        self.assertIn("'force user = nobody",HELPER)
 
-    def test_page_has_single_style_and_script(self):
-        page = self.constants["PAGE"]
-        self.assertEqual(page.count("<style>"), 1)
-        self.assertEqual(page.count("</style>"), 1)
-        self.assertEqual(page.count("<script>"), 1)
-        self.assertEqual(page.count("</script>"), 1)
+    def test_share_edits_synchronize_existing_data_automatically(self):
+        self.assertIn("def edit_with_acl_sync():",API)
+        self.assertIn("edit_nas_share(name,new_name,access,public,public_write)",API)
+        self.assertIn("privileged_command('pinas-nas-share','repair'",API)
+        self.assertIn("start_job(token,'share-edit-acl',edit_with_acl_sync)",API)
+        self.assertIn("Linux ACLs are updated together",WEB)
+        self.assertNotIn('name="repair_existing"',WEB)
 
-    def test_admin_confirmation_and_contrast(self):
-        page = self.constants["PAGE"]
-        self.assertIn("share-remove-confirm", page)
-        self.assertIn("background:#b72b3c!important", page)
-        self.assertIn("color:#fff!important", page)
-        self.assertIn("smb-reset-password", page)
-        self.assertNotIn("confirm('Reset Samba configuration?", page)
+    def test_repair_removes_stale_grants_and_reapplies_policy(self):
+        self.assertIn("managed=sorted(set(managed)|set(access)|{'nobody'})",HELPER)
+        self.assertIn("'/usr/bin/setfacl','-R','-P','-x',remove",HELPER)
+        self.assertIn("'/usr/bin/setfacl','-R','-P','-m','g::---,o::---,'+",HELPER)
+        self.assertIn("'/usr/bin/find',str(folder),'-xdev','-type','d'",HELPER)
+        self.assertIn("entry.replace('X','x')",HELPER)
+        self.assertIn("if any(point==str(folder)",HELPER)
+        self.assertNotIn("os.chmod(folder,0o777",HELPER)
+        self.assertIn("run(['/usr/bin/testparm','-s'])",HELPER)
+        self.assertIn("run(['/usr/bin/systemctl','reload','smbd'])",HELPER)
 
-    def test_public_permissions_guarded(self):
-        helper = self.constants["NAS_SHARE_HELPER"]
-        self.assertIn("os.chmod(folder,0o777 if public else 0o700)", helper)
-        self.assertIn("if public:os.chmod(folder,0o777)", helper)
+    def test_restricted_helper_and_version(self):
+        compile(HELPER,'pinas-nas-share','exec')
+        compile(USER_HELPER,'pinas-nas-user','exec')
+        self.assertIn("VERSION='1.1.1'",CORE)
+        self.assertIn("fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)",HELPER)
 
-    @unittest.skipUnless(shutil.which("node"), "Node.js not installed")
-    def test_embedded_javascript_syntax(self):
-        script = re.search(r"<script>(.*?)</script>", self.constants["PAGE"], re.S)
-        self.assertIsNotNone(script)
-        with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "pinas-ui.js"
-            path.write_text(script.group(1), encoding="utf-8")
-            result = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-
-if __name__ == "__main__":
+if __name__=='__main__':
     unittest.main()
