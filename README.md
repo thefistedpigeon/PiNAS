@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Current release: PiNAS v1.1.4.** This Shares-page consistency update standardises icon-and-text buttons and their order, while preserving the account, sharing and log functionality introduced in v1.1.3. PiNAS remains lightweight and NAS-focused; keep independent backups, especially before deleting folders.
+> **Current release: PiNAS v1.2.0.** This official release consolidates the v1.1.x updates into one tested standalone package: self-hosted fonts, unified Samba/POSIX ACL share permissions, automatic disk health, reliable session timeout, downloadable weekly-retained update history, user removal, and clearer share-management actions. PiNAS remains lightweight and NAS-focused. Always maintain independent backups; Delete Folder is irreversible.
 
 ## Features
 

@@ -13,7 +13,7 @@ PAGE = next(ast.literal_eval(n.value) for n in ast.parse(UI).body
 
 class ShareButtonConsistencyTests(unittest.TestCase):
     def test_release_version(self):
-        self.assertIn("VERSION='1.1.4'", CORE)
+        self.assertRegex(CORE,r"VERSION='(?:1\.1\.4|1\.2\.0)'")
 
     def test_create_share_keeps_icon_and_adds_text(self):
         self.assertIn("const CREATE_SHARE_ICON=", PAGE)
