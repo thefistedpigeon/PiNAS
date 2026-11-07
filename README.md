@@ -6,6 +6,13 @@
 
 ## Features
 
+### Typography
+- **Clear Sans (Intel)** is self-hosted for login, navigation, buttons, labels and forms (regular, medium and bold).
+- **Source Code Pro (Adobe)** is self-hosted for CLI-style output, code/log blocks and configuration path lists (regular and bold).
+- The fonts are embedded in the standalone Python distribution, served locally by PiNAS and cached by the browser. No client font installation or internet connection is required.
+- Licences are retained under `assets/fonts/` (Apache 2.0 for Clear Sans; SIL Open Font License 1.1 for Source Code Pro).
+
+
 ### Overview
 - Per-disk storage usage bars showing disk name, used and available space. System/boot storage is excluded from NAS disk listings.
 - Per-drive SMART health status and temperature alongside the Overview storage bars, checked **on demand**; standby drives are not deliberately woken and unsupported adapters are explained.
