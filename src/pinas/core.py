@@ -92,7 +92,7 @@ UPDATE_HISTORY_DB=Path('/var/lib/pinas-update-history/updates.sqlite3')
 def valid_history_weeks(value):
     return value if type(value) is int and 1<=value<=52 else 12
 
-def update_history(limit=40):
+def update_history(limit=500):
     """Read a short recent history, with no write transactions or periodic polling."""
     if not UPDATE_HISTORY_DB.is_file():return []
     try:
