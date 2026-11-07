@@ -2,6 +2,8 @@
 import ast
 import json
 import pathlib
+import shutil
+import subprocess
 import sqlite3
 import tempfile
 import time
@@ -80,6 +82,12 @@ class QualityOfLifeTests(unittest.TestCase):
         ):
             self.assertIn(needle,PAGE)
         self.assertIn("if self.command=='POST':s['expires']",API)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for JavaScript syntax validation")
+    def test_full_browser_script_parses(self):
+        script=PAGE.split("<script>",1)[1].split("</script>",1)[0]
+        result=subprocess.run(["node","--check"],input=script,text=True,capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
 
     def test_smart_is_automatic_and_history_cards_are_collapsed(self):
         for needle in ("autoDiskHealth()", "diskSmartLastChecked>=600000",
