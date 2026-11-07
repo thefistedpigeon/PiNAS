@@ -49,7 +49,7 @@ class ButtonVisualConsistency(unittest.TestCase):
         self.assertIn('id="save-update-history" type="button"',PAGE)
         self.assertIn('<span>Save</span>',PAGE)
         self.assertIn("saveHistory.onclick=async()=>",PAGE)
-        self.assertIn("action:'history-retention',months",PAGE)
+        self.assertIn("action:'history-retention',weeks",PAGE)
         self.assertIn('M20.38 8.6c-2.24-3.19',PAGE)
         self.assertIn('M4.71 20.95c-.93',PAGE)
 
