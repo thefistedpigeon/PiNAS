@@ -411,7 +411,7 @@ class Handler(BaseHTTPRequestHandler):
                             values=values.copy();values.pop(username,None);latest[key]=values
                     save(latest)
             for key,active in list(SESSIONS.items()):
-                if active.get('username')==username and active.get('role')==kind:
+                if active.get('username')==username and active.get('role')==('user' if kind=='nas' else 'admin'):
                     SESSIONS.pop(key,None)
             globals()['DISCOVERY_AT']=0
             self.json({'ok':True,'username':username,'files_preserved':True});return
