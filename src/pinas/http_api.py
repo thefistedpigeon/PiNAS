@@ -3,11 +3,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,fmt,*args):
         if self.path.split('?',1)[0] in ('/api/state','/api/pinas-build'):return
         print('%s - %s'%(self.address_string(),fmt%args),file=sys.stderr)
-    def send_headers(self,code=200,kind='application/json',cookie=None,cache_control='no-store',length=None):
+    def send_headers(self,code=200,kind='application/json',cookie=None,cache_control='no-store',length=None,download_filename=None):
         self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Cache-Control',cache_control);self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY');self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
         if isinstance(self.connection,ssl.SSLSocket):self.send_header('Strict-Transport-Security','max-age=86400')
         if cookie:self.send_header('Set-Cookie',cookie)
         if length is not None:self.send_header('Content-Length',str(length))
+        if download_filename:self.send_header('Content-Disposition','attachment; filename="'+download_filename+'"')
         self.end_headers()
     def json(self,data,status=200,cookie=None): self.send_headers(status,cookie=cookie);self.wfile.write(json.dumps(data).encode())
     def session(self):
@@ -130,6 +131,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(json.loads(p.stdout));return
             except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503);return
+        if path=='/api/update-history-download':
+            _,sess=self.session()
+            if not sess or sess.get('role')!='admin':
+                self.json({'error':'Administrator access required'},403);return
+            weeks=valid_history_weeks(load().get('update_history_weeks',12))
+            data=format_update_history(update_history(limit=2000),weeks).encode('utf-8')
+            filename='pinas-update-history-'+time.strftime('%Y-%m-%d')+'.txt'
+            self.send_headers(kind='text/plain; charset=utf-8',length=len(data),download_filename=filename)
+            self.wfile.write(data);return
         if path=='/api/updates':
             _,sess=self.session()
             if not sess or sess.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
@@ -148,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/media-upload','/api/config-backup','/api/config-restore','/api/session-touch'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/media-upload','/api/config-backup','/api/config-restore','/api/session-touch','/api/remove-user','/api/delete-folder'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -361,6 +371,50 @@ class Handler(BaseHTTPRequestHandler):
                     latest=load();names=latest.get('nas_display_names',{}).copy();names[username]=display_name.strip();latest['nas_display_names']=names;save(latest)
             globals()['DISCOVERY_AT']=0
             self.json({'ok':True});return
+        if path=='/api/remove-user':
+            kind=data.get('kind');username=data.get('username')
+            confirmation=data.get('admin_password')
+            if kind not in ('admin','nas') or not isinstance(username,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',username):
+                self.json({'error':'Invalid account selection.'},400);return
+            if data.get('confirm')!='REMOVE USER' or data.get('confirm_name')!=username:
+                self.json({'error':'Explicit user removal confirmation required.'},400);return
+            if not isinstance(confirmation,str) or not verify(confirmation,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if kind=='admin':
+                if username==s['username'] or username==cfg.get('admin_user','admin'):
+                    self.json({'error':'Cannot remove your current account or the primary PiNAS administrator.'},409);return
+                with SETUP_LOCK:
+                    latest=load();admins=admin_accounts(latest).copy()
+                    if username not in admins:self.json({'error':'Secondary administrator not found.'},404);return
+                    admins.pop(username);latest['additional_admins']=admins;save(latest)
+            else:
+                if username in ('pinas','root','admin','nobody') or admin_record(cfg,username):
+                    self.json({'error':'Protected account cannot be removed.'},409);return
+                # Fail closed if we cannot determine whether an account is in use.
+                try:
+                    listing=privileged_command('pinas-nas-share','list',timeout=15)
+                    if listing.returncode:raise RuntimeError('Unable to verify share memberships.')
+                    shares=json.loads(listing.stdout)
+                    if not isinstance(shares,list):raise ValueError('Invalid share catalogue')
+                    if any(isinstance(item,dict) and isinstance(item.get('access'),dict) and username in item['access'] for item in shares):
+                        self.json({'error':'Remove this user from all network share permissions first. Stop any private home share before deleting its account.'},409);return
+                    if not any(u.get('name')==username for u in nas_user_list() if isinstance(u,dict)):
+                        self.json({'error':'NAS user not found.'},404);return
+                    remove_nas_user(username)
+                except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
+                    self.json({'error':str(exc)},503);return
+                with SETUP_LOCK:
+                    latest=load()
+                    for key in ('nas_display_names','user_preferences'):
+                        values=latest.get(key,{})
+                        if isinstance(values,dict):
+                            values=values.copy();values.pop(username,None);latest[key]=values
+                    save(latest)
+            for key,active in list(SESSIONS.items()):
+                if active.get('username')==username and active.get('role')==('user' if kind=='nas' else 'admin'):
+                    SESSIONS.pop(key,None)
+            globals()['DISCOVERY_AT']=0
+            self.json({'ok':True,'username':username,'files_preserved':True});return
         if path=='/api/nas-users':
             username=data.get('username');password=data.get('password');display_name=data.get('display_name')
             create_home=data.get('create_home_share',False);home_volume=data.get('home_volume');admin_password=data.get('admin_password')
@@ -555,6 +609,21 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json(result);return
+        if path=='/api/delete-folder':
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid managed share.'},400);return
+            if data.get('confirm')!='DELETE FOLDER' or data.get('confirm_name')!=name:
+                self.json({'error':'Type the share name to confirm permanent deletion.'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only actively managed PiNAS share folders can be deleted.'},404);return
+            try:
+                self.json(start_job(token,'delete-folder',delete_nas_share_folder,name))
+            except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
+                self.json({'error':str(exc)},503)
+            return
         if path=='/api/delete-share':
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
@@ -758,9 +827,31 @@ if __name__=='__main__':
     if len(sys.argv)==2 and sys.argv[1]=='list':
         print(json.dumps(samba_users()))
         raise SystemExit(0)
-    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password'):raise SystemExit(2)
+    if len(sys.argv)!=3 or sys.argv[1] not in ('create','password','remove'):raise SystemExit(2)
     name=sys.argv[2]
     if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',name) or name in ('pinas','root','admin','nobody'):raise SystemExit(2)
+    if sys.argv[1]=='remove':
+        group=grp.getgrnam('pinas-nas')
+        try:account=pwd.getpwnam(name)
+        except KeyError:raise SystemExit('Managed Linux NAS user not found')
+        if (account.pw_gid!=group.gr_gid or
+            account.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin') or
+            account.pw_uid<1000):
+            raise SystemExit('Protected or unmanaged Linux account')
+        # Check managed share policies again in the privileged broker.
+        share_db='/var/lib/pinas/shares.json'
+        try:
+            with open(share_db,encoding='utf-8') as stream:shares=json.load(stream)
+        except FileNotFoundError:shares=[]
+        if not isinstance(shares,list):raise SystemExit('Invalid share catalogue')
+        if any(isinstance(item,dict) and isinstance(item.get('access'),dict) and name in item['access'] for item in shares):
+            raise SystemExit('Remove this user from network shares before deleting the account')
+        # Revoke SMB access first. Preserve all NAS data and folder ownership.
+        if any(u['name']==name for u in samba_users()):
+            run(['/usr/bin/smbpasswd','-x',name],capture_output=True,text=True)
+        run(['/usr/sbin/userdel',name],capture_output=True,text=True)
+        print(json.dumps({'ok':True,'files_preserved':True}))
+        raise SystemExit(0)
     password=sys.stdin.readline(258).rstrip('\n')
     if not 12<=len(password)<=256:raise SystemExit(2)
     if sys.argv[1]=='password':
@@ -865,7 +956,7 @@ if __name__=='__main__':
 
 NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
 # Root-only share broker. Strict input validation and independent mount checks.
-import fcntl, grp, json, os, pathlib, pwd, re, subprocess, sys, tempfile
+import fcntl, grp, json, os, pathlib, pwd, re, stat, subprocess, sys, tempfile
 
 DB=pathlib.Path('/var/lib/pinas/shares.json')
 CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
@@ -933,6 +1024,37 @@ def check_volume(device):
         selectedparents=set(run(['/usr/bin/lsblk','-s','-n','-o','MAJ:MIN',device]).stdout.split())
         if rootparents & selectedparents:raise ValueError('Operating system disk is protected')
     return mount
+
+def safe_delete_folder(item,items):
+    # Allow rm -rf only for an exact root-owned PiNAS share on a NAS mount.
+    name=item.get('name');mount=check_volume(item.get('volume'))
+    if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+        raise ValueError('Invalid managed share name')
+    modern=mount/'pinas-shares'/name
+    legacy=mount/'PiNAS Shares'/name
+    stored=item.get('folder')
+    folder=pathlib.Path(stored) if isinstance(stored,str) and stored else (legacy if legacy.is_dir() else modern)
+    if folder not in (modern,legacy):
+        raise ValueError('Share folder differs from the managed folder path')
+    parent=folder.parent
+    if (parent.is_symlink() or not parent.is_dir() or parent.stat().st_uid!=0 or
+        parent.stat().st_mode & 0o022):
+        raise ValueError('Share root is not a protected root-owned directory')
+    if (folder.is_symlink() or not folder.is_dir() or folder.stat().st_uid!=0 or
+        folder.stat().st_dev!=mount.stat().st_dev or os.path.ismount(folder)):
+        raise ValueError('Unsafe managed share folder; refusing deletion')
+    if any(other is not item and isinstance(other,dict) and other.get('folder')==str(folder) for other in items):
+        raise ValueError('Another share references this folder')
+    # Deny nested mounts, bind mounts, and inaccessible directories, rather
+    # than letting recursive deletion traverse another filesystem.
+    def walk_error(error):raise error
+    for root,dirs,_ in os.walk(folder,followlinks=False,onerror=walk_error):
+        for target in [root]+[os.path.join(root,name) for name in dirs]:
+            mode=os.lstat(target).st_mode
+            if stat.S_ISLNK(mode):continue  # rm unlinks a link; never follows it
+            if os.path.ismount(target) or os.lstat(target).st_dev!=mount.stat().st_dev:
+                raise ValueError('Nested mount detected; folder deletion refused')
+    return folder
 
 def main():
     if os.geteuid()!=0:raise ValueError('Root helper required')
@@ -1137,7 +1259,8 @@ def main():
             except Exception:pass
             raise
         print(json.dumps({'ok':True,'name':new_name}));return
-    if len(sys.argv)==2 and sys.argv[1]=='delete':
+    if len(sys.argv)==2 and sys.argv[1] in ('delete','delete-folder'):
+        removing_folder=sys.argv[1]=='delete-folder'
         raw=sys.stdin.read(8193)
         if len(raw)>8192:raise ValueError('Request too large')
         request=json.loads(raw);name=request.get('name')
@@ -1145,6 +1268,7 @@ def main():
         current=read_db()
         matches=[item for item in current if isinstance(item,dict) and item.get('name')==name]
         if len(matches)!=1:raise ValueError('Share is not managed by PiNAS')
+        folder=safe_delete_folder(matches[0],current) if removing_folder else None
         oldconf=CONF.read_text()
         # Match only a complete, exact managed Samba section; never touch unrelated shares.
         section=re.compile(r'(?m)^\['+re.escape(name)+r'\][ \t]*\n(?:(?!\[).*(?:\n|$))*')
@@ -1163,7 +1287,15 @@ def main():
             try:run(['/usr/bin/systemctl','reload','smbd'])
             except Exception:pass
             raise
-        # Deliberately leave the share directory, ACLs and files untouched.
+        if removing_folder:
+            # Samba has been stopped before removing data. No shell expansion.
+            # --one-file-system is a secondary guard against nested mounts.
+            try:
+                run(['/usr/bin/rm','-rf','--one-file-system','--',str(folder)],timeout=600)
+            except (subprocess.CalledProcessError,subprocess.TimeoutExpired,OSError) as exc:
+                raise RuntimeError('SMB sharing has stopped, but folder deletion failed: '+str(exc))
+            print(json.dumps({'ok':True,'share_removed':True,'folder_deleted':True}));return
+        # Stop Sharing leaves the folder, ACLs and files untouched.
         print(json.dumps({'ok':True,'files_preserved':True}));return
     if len(sys.argv)!=2 or sys.argv[1]!='create':raise ValueError('Unsupported action')
     raw=sys.stdin.read(8193)

@@ -13,9 +13,9 @@ def expand_modules(target):
     # GUI upgrades call --extract-modules, not --install. Refresh every
     # managed helper and its sudoers allowlist to avoid old code after update.
     specifications=(
-        ('pinas-nas-user',NAS_USER_HELPER,["create *","password *","list"]),
+        ('pinas-nas-user',NAS_USER_HELPER,["create *","password *","remove *","list"]),
         ('pinas-smb-reset',SMB_RESET_HELPER,["reset"]),
-        ('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"]),
+        ('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","delete-folder","edit","migrate","repair"]),
         ('pinas-nas-files',NAS_FILES_HELPER,[""]),
         ('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"]),
         ('pinas-media-upload',MEDIA_UPLOAD_HELPER,["start","chunk","finish","cancel"]),
@@ -128,13 +128,13 @@ def install(args):
     Path('/etc/systemd/system/pinas-hostname.path').write_text(path_unit)
     tls_timer='''[Unit]\nDescription=Check PiNAS hostname and managed TLS certificate monthly\n[Timer]\nOnCalendar=monthly\nPersistent=true\nUnit=pinas-hostname.service\n[Install]\nWantedBy=timers.target\n'''
     Path('/etc/systemd/system/pinas-hostname.timer').write_text(tls_timer)
-    user_helper=install_privileged_helper('pinas-nas-user',NAS_USER_HELPER,["create *","password *","list"])
+    user_helper=install_privileged_helper('pinas-nas-user',NAS_USER_HELPER,["create *","password *","remove *","list"])
     reset_helper=install_privileged_helper('pinas-smb-reset',SMB_RESET_HELPER,["reset"])
     if first_install and Path('/etc/samba/smb.conf').is_file():
         subprocess.run(['/usr/bin/python3',str(reset_helper),'reset'],check=True,timeout=45)
     install_privileged_helper('pinas-media-server',MEDIA_SERVER_HELPER,["status","install","save","start","stop","restart","rescan","grant","rebuild","setup-library"])
     install_privileged_helper('pinas-media-upload',MEDIA_UPLOAD_HELPER,["start","chunk","finish","cancel"])
-    share_helper=install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","edit","migrate","repair"])
+    share_helper=install_privileged_helper('pinas-nas-share',NAS_SHARE_HELPER,["list","create","delete","delete-folder","edit","migrate","repair"])
     files_helper=install_privileged_helper('pinas-nas-files',NAS_FILES_HELPER,[""])
     updater_helper=install_privileged_helper('pinas-upgrader',NAS_UPDATER_HELPER,["apply","status"])
     storage_helper=install_privileged_helper('pinas-nas-storage',NAS_STORAGE_HELPER,["adopt"])

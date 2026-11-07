@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse,parse_qs
 
-VERSION='1.1.2'
+VERSION='1.1.3'
 # A fresh identifier per service process lets browsers detect an update restart,
 # even when the application is updated without changing its version number.
 SERVER_INSTANCE=secrets.token_hex(16)
@@ -98,7 +98,7 @@ def update_history(limit=500):
     try:
         with sqlite3.connect(UPDATE_HISTORY_DB.as_uri()+'?mode=ro',uri=True,timeout=2) as db:
             db.row_factory=sqlite3.Row
-            rows=db.execute('SELECT started_at,completed_at,source,result,packages,summary FROM update_events WHERE started_at >= ? ORDER BY id DESC LIMIT ?', (int(time.time())-604800*valid_history_weeks(load().get('update_history_weeks',12)),min(max(int(limit),1),100))).fetchall()
+            rows=db.execute('SELECT started_at,completed_at,source,result,packages,summary FROM update_events WHERE started_at >= ? ORDER BY id DESC LIMIT ?', (int(time.time())-604800*valid_history_weeks(load().get('update_history_weeks',12)),min(max(int(limit),1),2000))).fetchall()
         history=[]
         for row in rows:
             try:packages=json.loads(row['packages'])
@@ -110,6 +110,28 @@ def update_history(limit=500):
         return history
     except (sqlite3.Error,OSError,ValueError):
         return []
+
+def format_update_history(entries,weeks,generated=None):
+    """Human-readable export of the same retained APT records shown in PiNAS."""
+    generated=time.time() if generated is None else generated
+    header=['PiNAS — Installed Update History',
+            'Generated: '+time.strftime('%Y-%m-%d %H:%M:%S %Z',time.localtime(generated)),
+            'Retention: '+str(weeks)+' week'+('' if weeks==1 else 's'),
+            'Records: '+str(len(entries)),'']
+    for item in entries:
+        started=item.get('started_at')
+        stamp=time.strftime('%Y-%m-%d',time.localtime(started)) if type(started) in (int,float) else 'Unknown date'
+        packages=item.get('packages')
+        packages=packages if isinstance(packages,list) else []
+        header.extend(['='*66,'Date: '+stamp,
+                       'Type: '+('Automatic' if item.get('source')=='automatic' else 'Manual'),
+                       'Result: '+('Installed' if item.get('result')=='success' else 'Failed'),
+                       'Packages ('+str(len(packages))+'):'])
+        header.extend('  - '+str(name) for name in packages)
+        if not packages:header.append('  No packages recorded')
+        header.extend(['APT summary:',str(item.get('summary') or 'No summary available'),''])
+    if not entries:header.append('No update installations recorded in the selected retention period.')
+    return '\n'.join(header)+'\n'
 
 APT_CACHE_LOCK=threading.Lock()
 APT_CACHE_AT=0.0
@@ -370,6 +392,20 @@ def storage_is_ready():
         return any(v.get('fs') in ('ext4','xfs','btrfs') and v.get('persistent') and v.get('mounts')
                    for d in drives for v in d.get('volumes',[]))
     except (KeyError,TypeError,ValueError):return False
+
+def remove_nas_user(username):
+    """Delete a previously provisioned NAS login; do not touch share files."""
+    proc=privileged_command('pinas-nas-user','remove',username,timeout=45)
+    if proc.returncode:
+        raise RuntimeError('NAS account removal failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-600:])
+
+def delete_nas_share_folder(name):
+    """Unshare and securely constrain recursive deletion to a managed folder."""
+    proc=privileged_command('pinas-nas-share','delete-folder',
+                            payload=json.dumps({'name':name}),timeout=720)
+    if proc.returncode:
+        raise RuntimeError('Folder deletion failed: '+(proc.stderr.strip() or 'The privileged helper returned an error.')[-700:])
+    return json.loads(proc.stdout)
 
 def provision_nas_user(username,password):
     """Delegate narrowly scoped account provisioning; never run useradd in web process."""

@@ -68,7 +68,7 @@ class StorageBreakdownTests(unittest.TestCase):
         self.assertIn("point.startswith(str(folder)+'/')",share)
         self.assertNotIn("os.chmod(folder,0o777",share)
         self.assertIn("os.chmod(folder,0o700)",share)
-        self.assertIn("['list','create','delete','edit','migrate','repair']",INSTALL.replace('"',"'"))
+        self.assertIn("['list','create','delete','delete-folder','edit','migrate','repair']",INSTALL.replace('"',"'"))
         self.assertIn("data-repair-share",UI)
         self.assertIn("if path=='/api/repair-share':",API)
 
