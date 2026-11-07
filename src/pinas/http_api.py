@@ -842,7 +842,7 @@ if __name__=='__main__':
 
 NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
 # Root-only share broker. Strict input validation and independent mount checks.
-import fcntl, json, os, pathlib, pwd, re, subprocess, sys, tempfile
+import fcntl, grp, json, os, pathlib, pwd, re, subprocess, sys, tempfile
 
 DB=pathlib.Path('/var/lib/pinas/shares.json')
 CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
@@ -1027,12 +1027,14 @@ def main():
         # Otherwise removed users can retain historical POSIX ACL grants.
         samba=run(['/usr/bin/pdbedit','-L']).stdout.splitlines()
         managed=[]
+        try:nas_gid=grp.getgrnam('pinas-nas').gr_gid
+        except KeyError:raise ValueError('PiNAS NAS user group is missing')
         for line in samba:
             username=line.split(':',1)[0]
             if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',username):continue
             try:
                 account=pwd.getpwnam(username)
-                if account.pw_shell in ('/usr/sbin/nologin','/sbin/nologin'):
+                if account.pw_gid==nas_gid and account.pw_shell in ('/usr/sbin/nologin','/sbin/nologin'):
                     managed.append(username)
             except KeyError:pass
         managed=sorted(set(managed)|set(access)|{'nobody'})
