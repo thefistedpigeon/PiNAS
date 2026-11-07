@@ -13,7 +13,10 @@ class Handler(BaseHTTPRequestHandler):
     def session(self):
         cookies=dict(x.strip().split('=',1) for x in self.headers.get('Cookie','').split(';') if '=' in x)
         token=cookies.get('pinas_session','');s=SESSIONS.get(token)
-        if s and s['expires']>time.time(): s['expires']=time.time()+idle_seconds(load());return token,s
+        if s and s['expires']>time.time():
+            # Automatic GET polling must not renew an idle session.
+            if self.command=='POST':s['expires']=time.time()+idle_seconds(load())
+            return token,s
         SESSIONS.pop(token,None);return '',None
     def do_GET(self):
         path=urlparse(self.path).path
@@ -134,7 +137,7 @@ class Handler(BaseHTTPRequestHandler):
             with UPDATE_LOCK:result['status']=UPDATE_STATUS.copy();result['firmware']=UPDATE_STATUS.get('firmware',{'state':'unknown'})
             result['reboot_required']=Path('/var/run/reboot-required').exists()
             result['history']=update_history()
-            result['history_months']=load().get('update_history_months',6)
+            result['history_weeks']=valid_history_weeks(load().get('update_history_weeks',12))
             try:result['schedule']=(DATA/'update-schedule').read_text().strip()
             except OSError:result['schedule']='off'
             self.json(result);return
@@ -145,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/media-upload','/api/config-backup','/api/config-restore'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/media-upload','/api/config-backup','/api/config-restore','/api/session-touch'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -176,6 +179,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json({'ok':True},cookie=f'pinas_session={token}; HttpOnly; SameSite=Strict; Path=/'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
         if not s or not hmac.compare_digest(self.headers.get('X-PiNAS-CSRF',''),s['csrf']):self.json({'error':'Authentication required'},403);return
         if path=='/api/logout':SESSIONS.pop(token,None);self.json({'ok':True},cookie='pinas_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if isinstance(self.connection,ssl.SSLSocket) else ''));return
+        if path=='/api/session-touch':self.json({'ok':True});return
         if path=='/api/user-preferences':
             if s.get('role')!='user':self.json({'error':'NAS user access required'},403);return
             theme,font,avatar=data.get('theme'),data.get('font'),data.get('avatar','')
@@ -244,18 +248,18 @@ class Handler(BaseHTTPRequestHandler):
             action=data.get('action')
             if action not in ('refresh','upgrade','schedule','reboot','history-retention','restart-auto'):self.json({'error':'Unsupported update action'},400);return
             if action=='history-retention':
-                months=data.get('months')
-                if type(months) is not int or months not in (6,12):
-                    self.json({'error':'Select a 6- or 12-month history retention period.'},400);return
+                weeks=data.get('weeks')
+                if type(weeks) is not int or not 1<=weeks<=52:
+                    self.json({'error':'Choose between 1 and 52 weeks of history.'},400);return
                 try:
-                    proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index','prune',str(months)],
+                    proc=subprocess.run(['/usr/bin/sudo','-n','/usr/local/libexec/pinas-apt-index','prune',str(weeks)],
                                         capture_output=True,text=True,timeout=20,check=False)
                     if proc.returncode:raise RuntimeError((proc.stderr or 'Unable to prune update history')[-350:])
                     with SETUP_LOCK:
-                        latest=load();latest['update_history_months']=months;save(latest)
+                        latest=load();latest['update_history_weeks']=weeks;latest.pop('update_history_months',None);save(latest)
                 except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:
                     self.json({'error':'Unable to update history retention: '+str(exc)},503);return
-                self.json({'ok':True,'months':months});return
+                self.json({'ok':True,'weeks':weeks});return
             if action=='restart-auto':
                 unit=data.get('unit');pw=data.get('admin_password')
                 if unit not in ('timer','service'):
@@ -651,7 +655,9 @@ class Handler(BaseHTTPRequestHandler):
                     if not ((mime=='image/jpeg' and decoded.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and decoded.startswith(b'\x89PNG\r\n\x1a\n')) or (mime=='image/webp' and decoded.startswith(b'RIFF') and decoded[8:12]==b'WEBP')):raise ValueError()
                 except (ValueError,IndexError):self.json({'error':'Invalid image'},400);return
             cfg['login_background']=image
-        save(cfg);self.json({'settings':dict({k:cfg.get(k) for k in ('theme','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
+        save(cfg)
+        if path=='/api/settings':s['expires']=time.time()+idle_seconds(cfg)
+        self.json({'settings':dict({k:cfg.get(k) for k in ('theme','font','cpu_interval','cpu_history','session_timeout')},has_background=bool(cfg.get('login_background')))} )
 
 HOSTNAME_HELPER = r"""#!/usr/bin/env python3
 # Apply host identity and renew only PiNAS-generated self-signed TLS.
@@ -1503,12 +1509,12 @@ DB=DB_DIR/'updates.sqlite3'
 CFG=Path('/var/lib/pinas/config.json')
 UNITS={'timer':'pinas-auto-updates.timer','service':'pinas-auto-updates.service'}
 
-def retention_months():
+def retention_weeks():
     try:
-        value=json.loads(CFG.read_text()).get('update_history_months',6)
-        return value if type(value) is int and value in (6,12) else 6
+        value=json.loads(CFG.read_text()).get('update_history_weeks',12)
+        return value if type(value) is int and 1<=value<=52 else 12
     except (OSError,ValueError,TypeError):
-        return 6
+        return 12
 
 def database():
     if DB_DIR.is_symlink() or (DB.exists() and DB.is_symlink()):
@@ -1533,8 +1539,9 @@ def database():
     os.chown(DB,0,group);os.chmod(DB,0o640)
     return connection
 
-def prune(connection,months):
-    connection.execute("DELETE FROM update_events WHERE started_at < CAST(strftime('%s','now',?) AS INTEGER)",('-'+str(months)+' months',))
+def prune(connection,weeks):
+    if type(weeks) is not int or not 1<=weeks<=52:raise ValueError('Invalid retention weeks')
+    connection.execute("DELETE FROM update_events WHERE started_at < ?",(int(time.time())-604800*weeks,))
     # Cap event count as a second bound in case scheduling is unusually frequent.
     connection.execute('DELETE FROM update_events WHERE id NOT IN (SELECT id FROM update_events ORDER BY id DESC LIMIT 2000)')
     connection.execute('PRAGMA incremental_vacuum(24)')
@@ -1544,7 +1551,7 @@ def record(source,result,started,packages,summary):
         with database() as db:
             db.execute('INSERT INTO update_events(started_at,completed_at,source,result,packages,summary) VALUES (?,?,?,?,?,?)',
                        (started,int(time.time()),source,result,json.dumps(sorted(packages)[:120]),summary[-800:]))
-            prune(db,retention_months())
+            prune(db,retention_weeks())
     except (sqlite3.Error,OSError,ValueError,KeyError) as exc:
         print('Warning: update history could not be saved: '+str(exc)[:150],file=sys.stderr)
 
@@ -1600,7 +1607,7 @@ def main():
         marker=Path('/var/lib/pinas/update-schedule')
         marker.write_text(schedule+'\n');os.chmod(marker,0o644)
         return
-    if len(args)==2 and args[0]=='prune' and args[1] in ('6','12'):
+    if len(args)==2 and args[0]=='prune' and args[1].isascii() and args[1].isdigit() and 1<=int(args[1])<=52:
         with database() as db:prune(db,int(args[1]))
         return
     if len(args)==2 and args[0]=='restart-auto' and args[1] in UNITS:
