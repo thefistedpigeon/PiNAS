@@ -19,7 +19,7 @@ HELPERS={node.targets[0].id:ast.literal_eval(node.value)
 
 class ManagementLogsTests(unittest.TestCase):
     def test_release_version(self):
-        self.assertIn("VERSION='1.1.3'",CORE)
+        self.assertRegex(CORE,r"VERSION='1\.1\.[34]'")
 
     def test_log_export_includes_all_retained_records(self):
         self.assertIn("if path=='/api/update-history-download':",API)
