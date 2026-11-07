@@ -27,6 +27,7 @@
 - Inspect mounts and adopt existing formatted drives, with persistent mounting and applicable filesystem options.
 - Run a manual **File Type Scan** separately for each mounted PiNAS data volume on Storage. The scan classifies allocated file sizes as Video, Pictures, Music and Other / filesystem, with a free-space segment; it never opens file contents.
 - Access RAID management and discovery using `mdadm` when supported by the hardware and connected drives.
+- The RAID tab is shown only when at least two writable, non-system data disks are detected, or when an existing mdadm array needs monitoring (including degraded arrays). System/boot disks and virtual devices such as ZRAM do not count.
 - Storage operations with confirmation and appropriate administrative safeguards.
 
 **Caution:** Destructive operations can cause permanent data loss. Confirm drive identities, RAID membership and available backups before applying changes. Not every filesystem or RAID workflow has been validated on all hardware.
