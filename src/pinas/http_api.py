@@ -1026,7 +1026,7 @@ def check_volume(device):
     return mount
 
 def safe_delete_folder(item,items):
-    """Allow rm -rf only for an exact root-owned PiNAS share on a NAS mount."""
+    # Allow rm -rf only for an exact root-owned PiNAS share on a NAS mount.
     name=item.get('name');mount=check_volume(item.get('volume'))
     if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
         raise ValueError('Invalid managed share name')
