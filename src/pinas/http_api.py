@@ -3,10 +3,11 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,fmt,*args):
         if self.path.split('?',1)[0] in ('/api/state','/api/pinas-build'):return
         print('%s - %s'%(self.address_string(),fmt%args),file=sys.stderr)
-    def send_headers(self,code=200,kind='application/json',cookie=None):
-        self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY');self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+    def send_headers(self,code=200,kind='application/json',cookie=None,cache_control='no-store',length=None):
+        self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Cache-Control',cache_control);self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY');self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
         if isinstance(self.connection,ssl.SSLSocket):self.send_header('Strict-Transport-Security','max-age=86400')
         if cookie:self.send_header('Set-Cookie',cookie)
+        if length is not None:self.send_header('Content-Length',str(length))
         self.end_headers()
     def json(self,data,status=200,cookie=None): self.send_headers(status,cookie=cookie);self.wfile.write(json.dumps(data).encode())
     def session(self):
@@ -17,6 +18,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=='/':self.send_headers(kind='text/html; charset=utf-8');self.wfile.write(PAGE_BYTES);return
+        if path.startswith('/assets/fonts/'):
+            # Fixed, embedded asset allowlist: no filesystem access or remote requests.
+            name=path[len('/assets/fonts/'):]
+            encoded=PINAS_FONT_ASSETS.get(name)
+            if encoded is None:self.json({'error':'Not found'},404);return
+            payload=base64.b64decode(encoded)
+            mime='font/woff2' if name.endswith('.woff2') else 'font/woff'
+            self.send_headers(kind=mime,cache_control='public, max-age=86400',length=len(payload))
+            self.wfile.write(payload);return
         if path=='/api/job':
             token,session=self.session()
             if not session:self.json({'error':'Authentication required'},403);return
