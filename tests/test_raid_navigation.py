@@ -35,9 +35,9 @@ class RaidNavigationTests(unittest.TestCase):
             found = re.search(r"const " + name + r"=\(\)=>[^\n]+", script)
             self.assertIsNotNone(found, name)
             declarations.append(found.group(0))
-        disk = lambda name, **extra: dict(name=name, path="/dev/" + name,
-                                            type="disk", size=500_000_000_000,
-                                            read_only=False, **extra)
+        disk = lambda name, **extra: dict({"name":name, "path":"/dev/" + name,
+                                              "type":"disk", "size":500_000_000_000,
+                                              "read_only":False}, **extra)
         cases = [
             ({"disks": []}, False),
             ({"disks": [disk("sda")]}, False),
