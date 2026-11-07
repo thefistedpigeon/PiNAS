@@ -1235,7 +1235,7 @@ if __name__=='__main__':
 NAS_FILES_HELPER = r"""#!/usr/bin/env python3
 # Privileged, narrow file broker. Authentication against Samba passdb; filesystem
 # operations executed as the NAS user's actual UID/GID and supplementary groups.
-import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+import grp, base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
 DB=pathlib.Path('/var/lib/pinas/shares.json')
 def md4(message):
     # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
@@ -1263,6 +1263,9 @@ def valid_user(user):
     if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
     person=pwd.getpwnam(user)
     if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    try:nas_gid=grp.getgrnam('pinas-nas').gr_gid
+    except KeyError:raise ValueError('PiNAS NAS group is missing')
+    if person.pw_gid!=nas_gid:raise ValueError('Not a PiNAS-managed NAS user')
     if samba_hash(user)=='':raise ValueError('Not a Samba user')
     return person
 def shares_for(user):
