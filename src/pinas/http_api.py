@@ -3,11 +3,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,fmt,*args):
         if self.path.split('?',1)[0] in ('/api/state','/api/pinas-build'):return
         print('%s - %s'%(self.address_string(),fmt%args),file=sys.stderr)
-    def send_headers(self,code=200,kind='application/json',cookie=None,cache_control='no-store',length=None):
+    def send_headers(self,code=200,kind='application/json',cookie=None,cache_control='no-store',length=None,download_filename=None):
         self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Cache-Control',cache_control);self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY');self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
         if isinstance(self.connection,ssl.SSLSocket):self.send_header('Strict-Transport-Security','max-age=86400')
         if cookie:self.send_header('Set-Cookie',cookie)
         if length is not None:self.send_header('Content-Length',str(length))
+        if download_filename:self.send_header('Content-Disposition','attachment; filename="'+download_filename+'"')
         self.end_headers()
     def json(self,data,status=200,cookie=None): self.send_headers(status,cookie=cookie);self.wfile.write(json.dumps(data).encode())
     def session(self):
@@ -130,6 +131,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(json.loads(p.stdout));return
             except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
                 self.json({'error':str(exc)},503);return
+        if path=='/api/update-history-download':
+            _,sess=self.session()
+            if not sess or sess.get('role')!='admin':
+                self.json({'error':'Administrator access required'},403);return
+            weeks=valid_history_weeks(load().get('update_history_weeks',12))
+            data=format_update_history(update_history(limit=2000),weeks).encode('utf-8')
+            filename='pinas-update-history-'+time.strftime('%Y-%m-%d')+'.txt'
+            self.send_headers(kind='text/plain; charset=utf-8',length=len(data),download_filename=filename)
+            self.wfile.write(data);return
         if path=='/api/updates':
             _,sess=self.session()
             if not sess or sess.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
@@ -148,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
         self.json({'setup':setup,'authenticated':bool(s),'csrf':s['csrf'] if s else '', 'role':s.get('role','admin') if s else '', 'username':s.get('username','') if s else '', 'display_name':((cfg.get('nas_display_names',{}).get(s.get('username',''),s.get('username','')) if isinstance(cfg.get('nas_display_names',{}),dict) else s.get('username','')) if s and s.get('role')=='user' else (admin_record(cfg,s.get('username','')) or {}).get('display_name','') if s else ''), 'settings':safe,'hardware':hardware() if s and s.get('role')=='admin' else {'model':read('/proc/device-tree/model').replace('\x00','') or 'Raspberry Pi','suggested_hostname':suggested_hostname(read('/proc/device-tree/model').replace('\x00',''))},'cpu':cpu_history(cfg.get('cpu_history',10)) if s and s.get('role')=='admin' else {}})
     def do_POST(self):
         path=urlparse(self.path).path
-        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/media-upload','/api/config-backup','/api/config-restore','/api/session-touch'):self.json({'error':'Not found'},404);return
+        if path not in ('/api/pinas-upgrade','/api/reset-smb','/api/edit-share','/api/repair-share','/api/media-breakdown','/api/power','/api/delete-share','/api/migrate-share','/api/setup','/api/login','/api/logout','/api/settings','/api/background','/api/nas-users','/api/admin-users','/api/edit-user','/api/nas-shares','/api/storage','/api/disk-destructive','/api/files','/api/user-preferences','/api/updates','/api/media-server','/api/media-upload','/api/config-backup','/api/config-restore','/api/session-touch','/api/remove-user','/api/delete-folder'):self.json({'error':'Not found'},404);return
         if int(self.headers.get('Content-Length','0'))>6*1024*1024:self.json({'error':'Request too large'},413);return
         try: data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
         except (ValueError,TypeError):self.json({'error':'Invalid JSON'},400);return
@@ -361,6 +371,50 @@ class Handler(BaseHTTPRequestHandler):
                     latest=load();names=latest.get('nas_display_names',{}).copy();names[username]=display_name.strip();latest['nas_display_names']=names;save(latest)
             globals()['DISCOVERY_AT']=0
             self.json({'ok':True});return
+        if path=='/api/remove-user':
+            kind=data.get('kind');username=data.get('username')
+            confirmation=data.get('admin_password')
+            if kind not in ('admin','nas') or not isinstance(username,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',username):
+                self.json({'error':'Invalid account selection.'},400);return
+            if data.get('confirm')!='REMOVE USER' or data.get('confirm_name')!=username:
+                self.json({'error':'Explicit user removal confirmation required.'},400);return
+            if not isinstance(confirmation,str) or not verify(confirmation,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if kind=='admin':
+                if username==s['username'] or username==cfg.get('admin_user','admin'):
+                    self.json({'error':'Cannot remove your current account or the primary PiNAS administrator.'},409);return
+                with SETUP_LOCK:
+                    latest=load();admins=admin_accounts(latest).copy()
+                    if username not in admins:self.json({'error':'Secondary administrator not found.'},404);return
+                    admins.pop(username);latest['additional_admins']=admins;save(latest)
+            else:
+                if username in ('pinas','root','admin','nobody') or admin_record(cfg,username):
+                    self.json({'error':'Protected account cannot be removed.'},409);return
+                # Fail closed if we cannot determine whether an account is in use.
+                try:
+                    listing=privileged_command('pinas-nas-share','list',timeout=15)
+                    if listing.returncode:raise RuntimeError('Unable to verify share memberships.')
+                    shares=json.loads(listing.stdout)
+                    if not isinstance(shares,list):raise ValueError('Invalid share catalogue')
+                    if any(isinstance(item,dict) and isinstance(item.get('access'),dict) and username in item['access'] for item in shares):
+                        self.json({'error':'Remove this user from all network share permissions first. Stop any private home share before deleting its account.'},409);return
+                    if not any(u.get('name')==username for u in nas_user_list() if isinstance(u,dict)):
+                        self.json({'error':'NAS user not found.'},404);return
+                    remove_nas_user(username)
+                except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
+                    self.json({'error':str(exc)},503);return
+                with SETUP_LOCK:
+                    latest=load()
+                    for key in ('nas_display_names','user_preferences'):
+                        values=latest.get(key,{})
+                        if isinstance(values,dict):
+                            values=values.copy();values.pop(username,None);latest[key]=values
+                    save(latest)
+            for key,active in list(SESSIONS.items()):
+                if active.get('username')==username and active.get('role')==kind:
+                    SESSIONS.pop(key,None)
+            DISCOVERY_AT=0
+            self.json({'ok':True,'username':username,'files_preserved':True});return
         if path=='/api/nas-users':
             username=data.get('username');password=data.get('password');display_name=data.get('display_name')
             create_home=data.get('create_home_share',False);home_volume=data.get('home_volume');admin_password=data.get('admin_password')
@@ -555,6 +609,21 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':str(exc)},503);return
             DISCOVERY_AT=0
             self.json(result);return
+        if path=='/api/delete-folder':
+            name=data.get('name');password=data.get('admin_password')
+            if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
+                self.json({'error':'Invalid managed share.'},400);return
+            if data.get('confirm')!='DELETE FOLDER' or data.get('confirm_name')!=name:
+                self.json({'error':'Type the share name to confirm permanent deletion.'},400);return
+            if not isinstance(password,str) or not verify(password,(admin_record(cfg,s['username']) or {}).get('password','')):
+                time.sleep(.35);self.json({'error':'Administrator password is incorrect.'},403);return
+            if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
+                self.json({'error':'Only actively managed PiNAS share folders can be deleted.'},404);return
+            try:
+                self.json(start_job(token,'delete-folder',delete_nas_share_folder,name))
+            except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
+                self.json({'error':str(exc)},503)
+            return
         if path=='/api/delete-share':
             name=data.get('name');password=data.get('admin_password')
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,31}',name):
