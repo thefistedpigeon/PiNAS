@@ -53,8 +53,9 @@ class SingleFileRegressions(unittest.TestCase):
 
     def test_public_permissions_guarded(self):
         helper = self.constants["NAS_SHARE_HELPER"]
-        self.assertIn("os.chmod(folder,0o777 if public else 0o700)", helper)
-        self.assertIn("if public:os.chmod(folder,0o777)", helper)
+        self.assertNotIn("os.chmod(folder,0o777", helper)
+        self.assertIn("os.chmod(folder,0o700)", helper)
+        self.assertIn("'u:nobody:'+('rwx' if public_write else 'r-x')", helper)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js not installed")
     def test_embedded_javascript_syntax(self):

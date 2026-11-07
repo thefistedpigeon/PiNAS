@@ -511,10 +511,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'error':'Unknown NAS user.'},409);return
             if not any(isinstance(item,dict) and item.get('name')==name for item in nas_share_list()):
                 self.json({'error':'Only PiNAS-managed shares can be edited.'},404);return
-            try:edit_nas_share(name,new_name,access,public,public_write)
-            except (OSError,subprocess.TimeoutExpired,RuntimeError) as exc:self.json({'error':str(exc)},503);return
-            DISCOVERY_AT=0
-            self.json({'ok':True,'share':new_name});return
+            try:
+                # Access edits must also reconcile the Linux ACLs on existing
+                # content. Background execution avoids web and Pi 3B timeouts.
+                def edit_with_acl_sync():
+                    edit_nas_share(name,new_name,access,public,public_write)
+                    repair=privileged_command('pinas-nas-share','repair',
+                        payload=json.dumps({'name':new_name}),timeout=1800)
+                    if repair.returncode:
+                        raise RuntimeError('Samba share was updated, but Linux ACL reconciliation failed: '+
+                                           (repair.stderr.strip() or 'Please run Repair access for this share')[-550:])
+                    global DISCOVERY_AT
+                    DISCOVERY_AT=0
+                    return {'ok':True,'share':new_name,'acl_synced':True}
+                self.json(start_job(token,'share-edit-acl',edit_with_acl_sync));return
+            except (OSError,ValueError,subprocess.TimeoutExpired,RuntimeError) as exc:
+                self.json({'error':str(exc)},503);return
         if path=='/api/migrate-share':
             if s.get('role')!='admin':self.json({'error':'Administrator access required'},403);return
             name=data.get('name');password=data.get('admin_password')
@@ -710,12 +722,19 @@ def run(argv, **kwargs):
     return subprocess.run(argv, check=True, timeout=20, **kwargs)
 
 def samba_users():
+    # Only accounts belonging to PiNAS's dedicated NAS group are managed here.
+    try:nas_gid=grp.getgrnam('pinas-nas').gr_gid
+    except KeyError:return []
     p=run(['/usr/bin/pdbedit','-L'],capture_output=True,text=True)
     result=[]
     for line in p.stdout.splitlines():
         fields=line.split(':',2)
-        if len(fields)>=2 and re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):
-            result.append({'name':fields[0],'uid':fields[1]})
+        if len(fields)<2 or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',fields[0]):continue
+        try:
+            account=pwd.getpwnam(fields[0])
+            if account.pw_gid!=nas_gid or account.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):continue
+        except KeyError:continue
+        result.append({'name':fields[0],'uid':str(account.pw_uid)})
     return sorted(result,key=lambda x:x['name'])
 
 if __name__=='__main__':
@@ -830,7 +849,7 @@ if __name__=='__main__':
 
 NAS_SHARE_HELPER = r"""#!/usr/bin/env python3
 # Root-only share broker. Strict input validation and independent mount checks.
-import fcntl, json, os, pathlib, pwd, re, subprocess, sys, tempfile
+import fcntl, grp, json, os, pathlib, pwd, re, subprocess, sys, tempfile
 
 DB=pathlib.Path('/var/lib/pinas/shares.json')
 CONF=pathlib.Path('/etc/samba/pinas-shares.conf')
@@ -1011,12 +1030,32 @@ def main():
             if not access or any(not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',u) or p not in ('ro','rw') for u,p in access.items()):
                 raise ValueError('Invalid saved share permissions')
             entries=['u:'+u+':'+('rwX' if p=='rw' else 'rX') for u,p in access.items()]
-        # POSIX ACL permissions are re-applied to existing content, not
-        # replaced wholesale; custom ACLs, ownership and file modes remain.
-        run(['/usr/bin/setfacl','-R','-P','-m',','.join(entries),str(folder)],timeout=150)
-        defaults=[entry.replace('X','x') for entry in entries]
+        # Replace only PiNAS-managed identities on existing files and folders.
+        # Otherwise removed users can retain historical POSIX ACL grants.
+        samba=run(['/usr/bin/pdbedit','-L']).stdout.splitlines()
+        managed=[]
+        try:nas_gid=grp.getgrnam('pinas-nas').gr_gid
+        except KeyError:raise ValueError('PiNAS NAS user group is missing')
+        for line in samba:
+            username=line.split(':',1)[0]
+            if not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',username):continue
+            try:
+                account=pwd.getpwnam(username)
+                if account.pw_gid==nas_gid and account.pw_shell in ('/usr/sbin/nologin','/sbin/nologin'):
+                    managed.append(username)
+            except KeyError:pass
+        managed=sorted(set(managed)|set(access)|{'nobody'})
+        # Clear previously granted PiNAS user ACLs and default entries.
+        # Keep filesystem owner, other unrelated ACL identities and file contents.
+        remove=','.join('u:'+name for name in managed)
+        run(['/usr/bin/setfacl','-R','-P','-x',remove,str(folder)],timeout=420)
         run(['/usr/bin/find',str(folder),'-xdev','-type','d','-exec',
-             '/usr/bin/setfacl','-m',','.join('d:'+e for e in defaults),'{}','+'],timeout=150)
+             '/usr/bin/setfacl','-x',','.join('d:u:'+name for name in managed),'{}','+'],timeout=420)
+        # Enforce no access for group/other, with explicit named user rules.
+        run(['/usr/bin/setfacl','-R','-P','-m','g::---,o::---,'+','.join(entries),str(folder)],timeout=420)
+        defaults=['d:u::rwx','d:g::---','d:o::---']+['d:'+entry.replace('X','x') for entry in entries]
+        run(['/usr/bin/find',str(folder),'-xdev','-type','d','-exec',
+             '/usr/bin/setfacl','-m',','.join(defaults),'{}','+'],timeout=420)
         print(json.dumps({'ok':True,'name':name}));return
     if len(sys.argv)==2 and sys.argv[1]=='edit':
         raw=sys.stdin.read(8193)
@@ -1063,8 +1102,8 @@ def main():
         try:
             run(['/usr/bin/setfacl','-b',str(folder)])
             run(['/usr/bin/setfacl','-k',str(folder)])
-            os.chmod(folder,0o777 if public else 0o700)
-            # chmod after setfacl would collapse the ACL mask and deny named users.
+            os.chmod(folder,0o700)
+            # ACL named users (including guest nobody) provide access; no world write.
             run(['/usr/bin/setfacl','-m',','.join(acl+['d:'+entry for entry in acl]),str(folder)])
             if new_smb!=old_smb:atomic(SMB,new_smb,0o644)
             atomic(CONF,newconf,0o644)
@@ -1160,11 +1199,10 @@ def main():
     try:
         # Root-owned folder; Samba creates files as authenticated Unix users.
         os.chown(folder,0,0)
-        os.chmod(folder,0o777 if public else 0o700)
+        os.chmod(folder,0o700)
         acl=['u::rwx','g::---','o::---','m::rwx']+(['u:nobody:'+('rwx' if public_write else 'r-x')] if public else [f'u:{u}:'+('rwx' if p=='rw' else 'r-x') for u,p in access.items()])
         default=['d:'+entry for entry in acl]
         run(['/usr/bin/setfacl','-m',','.join(acl+default),str(folder)])
-        if public:os.chmod(folder,0o777)
         if amended!=original:atomic(SMB,amended,0o644)
         atomic(CONF,oldconf+stanza,0o644)
         run(['/usr/bin/testparm','-s'])
@@ -1197,7 +1235,7 @@ if __name__=='__main__':
 NAS_FILES_HELPER = r"""#!/usr/bin/env python3
 # Privileged, narrow file broker. Authentication against Samba passdb; filesystem
 # operations executed as the NAS user's actual UID/GID and supplementary groups.
-import base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
+import grp, base64, hashlib, hmac, json, os, pathlib, pwd, re, stat, subprocess, sys
 DB=pathlib.Path('/var/lib/pinas/shares.json')
 def md4(message):
     # NT hash is MD4(UTF-16LE password). Samba uses NT hashes for SMB auth.
@@ -1225,6 +1263,9 @@ def valid_user(user):
     if not isinstance(user,str) or not re.fullmatch(r'[a-z_][a-z0-9_-]{2,31}',user):raise ValueError('Invalid user')
     person=pwd.getpwnam(user)
     if person.pw_shell not in ('/usr/sbin/nologin','/sbin/nologin'):raise ValueError('Not a PiNAS NAS user')
+    try:nas_gid=grp.getgrnam('pinas-nas').gr_gid
+    except KeyError:raise ValueError('PiNAS NAS group is missing')
+    if person.pw_gid!=nas_gid:raise ValueError('Not a PiNAS-managed NAS user')
     if samba_hash(user)=='':raise ValueError('Not a Samba user')
     return person
 def shares_for(user):

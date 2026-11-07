@@ -111,6 +111,7 @@ class HardeningTests(unittest.TestCase):
         share=load_helper('NAS_SHARE_HELPER',API)
         self.assertIn("fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)",share)
         self.assertIn("'nas_display_names']={**existing_names,**names}",API)
-        self.assertIn("repair_existing",UI)
+        self.assertNotIn("repair_existing",UI)
+        self.assertIn("Linux ACLs are updated together",UI)
 
 if __name__=='__main__':unittest.main()
