@@ -23,7 +23,7 @@ class UpdateHistoryTests(unittest.TestCase):
     def test_helper_syntax_and_restricted_commands(self):
         compile(HELPER,'pinas-apt-index','exec')
         self.assertIn("args[0]=='restart-auto' and args[1] in UNITS",HELPER)
-        self.assertIn("args[0]=='prune' and args[1] in ('6','12')",HELPER)
+        self.assertIn("args[0]=='prune' and args[1].isascii() and args[1].isdigit()",HELPER)
         self.assertIn("record('automatic','failed'",HELPER)
         self.assertIn("upgrade('manual')",HELPER)
         self.assertIn("upgrade('automatic')",HELPER)
@@ -46,7 +46,7 @@ class UpdateHistoryTests(unittest.TestCase):
             scope['DB_DIR']=db_dir
             scope['DB']=db_dir/'updates.sqlite3'
             scope['CFG']=pathlib.Path(tmp)/'config.json'
-            scope['CFG'].write_text(json.dumps({'update_history_months':6}))
+            scope['CFG'].write_text(json.dumps({'update_history_weeks':12}))
             # CI runs as a regular user; no ownership changes are required here.
             with mock.patch.object(scope['os'],'chown'),mock.patch.object(scope['grp'],'getgrnam',return_value=types.SimpleNamespace(gr_gid=0)):
                 scope['record']('manual','success',int(time.time()),{'samba','curl'},'Installed updates')
@@ -58,14 +58,14 @@ class UpdateHistoryTests(unittest.TestCase):
                 with scope['database']() as db:
                     db.execute('INSERT INTO update_events(started_at,completed_at,source,result,packages,summary) VALUES(?,?,?,?,?,?)',
                                (int(time.time())-400*86400,int(time.time())-400*86400,'automatic','failed','[]','Old event'))
-                    scope['prune'](db,6)
+                    scope['prune'](db,12)
                 with sqlite3.connect(scope['DB']) as connection:
                     self.assertEqual(connection.execute('SELECT COUNT(*) FROM update_events').fetchone()[0],1)
 
     def test_service_health_distinguishes_oneshot_idle_from_failure(self):
         self.assertIn("'pinas-auto-updates.timer'",CORE)
         self.assertIn("'pinas-auto-updates.service'",CORE)
-        self.assertIn("item.update(state='healthy',detail='Last run succeeded or waiting for next schedule')",CORE)
+        self.assertIn("item.update(state='healthy',detail='Last run succeeded')",CORE)
         self.assertIn("item['restart_action']='timer' if unit.endswith('.timer') else 'service'",CORE)
         self.assertIn("Automatic updates disabled in schedule",CORE)
 
@@ -75,22 +75,22 @@ class UpdateHistoryTests(unittest.TestCase):
         self.assertIn("verify(pw,(admin_record(cfg,s['username']) or {}).get('password',''))",API)
         self.assertIn("item.get('restart_action')!=unit",API)
         self.assertIn("if action=='history-retention':",API)
-        self.assertIn("type(months) is not int or months not in (6,12)",API)
+        self.assertIn("type(weeks) is not int or not 1<=weeks<=52",API)
         self.assertIn("result['history']=update_history()",API)
-        self.assertIn("result['history_months']=load().get('update_history_months',6)",API)
+        self.assertIn("result['history_weeks']=valid_history_weeks(load().get('update_history_weeks',12))",API)
 
     def test_gui_installer_updates_privileged_helper(self):
         self.assertIn("('pinas-apt-index',APT_INDEX_HELPER",INSTALLER)
         self.assertIn('"restart-auto timer","restart-auto service"',INSTALLER)
-        self.assertIn('"prune 6","prune 12"',INSTALLER)
+        self.assertIn('"prune *"',INSTALLER)
 
     def test_ui_displays_history_and_guarded_restart(self):
-        for expected in ('Installed update history','update-history-months','update-history-list',
+        for expected in ('Installed update history','update-history-weeks','update-history-list',
                          'data-restart-auto','Automatic update service health','loadUpdateUnitHealth()'):
             self.assertIn(expected,PAGE)
         self.assertIn("fileTextDialog({title:'Restart automatic updates'",PAGE)
         self.assertIn("action:'restart-auto',unit,admin_password:password",PAGE)
-        self.assertIn("action:'history-retention',months",PAGE)
+        self.assertIn("action:'history-retention',weeks",PAGE)
         self.assertIn("esc(item.summary||'No summary available')",PAGE)
 
 if __name__=='__main__':
