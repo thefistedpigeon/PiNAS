@@ -2,7 +2,7 @@
 
 **PiNAS** is a lightweight, browser-based network-attached storage (NAS) manager designed primarily for Raspberry Pi hardware, including the Raspberry Pi 3B/3B+. It targets Raspberry Pi OS Lite and related Debian-based Linux systems, with an emphasis on low CPU, memory and disk-I/O overhead.
 
-> **Current release: PiNAS v1.1.0.** This release introduces the optional MiniDLNA Media Server, guided media-library setup and browser media uploads, alongside storage diagnostics and administration hardening. PiNAS remains lightweight and NAS-focused. Keep independent backups; destructive storage operations are irreversible.
+> **Current release: PiNAS v1.1.2.** This quality-of-life release fixes idle-session expiry, schedules SMART health checks on Overview and Storage automatically, and replaces monthly update-history retention with 1–52 weeks (12-week default). It also simplifies the automatic update service's healthy-status text. PiNAS remains lightweight and NAS-focused; keep independent backups.
 
 ## Features
 
@@ -15,7 +15,7 @@
 
 ### Overview
 - Per-disk storage usage bars showing disk name, used and available space. System/boot storage is excluded from NAS disk listings.
-- Per-drive SMART health status and temperature alongside the Overview storage bars, checked **on demand**; standby drives are not deliberately woken and unsupported adapters are explained.
+- Per-drive SMART health status and temperature alongside the Overview storage bars, checked **automatically on page load and every 10 minutes while the Overview/Storage page remains open**; standby drives are not deliberately woken and unsupported adapters are explained.
 - Compact Disks / Shares / Users counters with links to their respective pages.
 - CPU activity history with configurable sampling and history length.
 - Memory usage and CPU-temperature doughnut charts.
@@ -23,8 +23,12 @@
 - NAS service health and reboot warnings, checked when Overview is opened or refreshed.
 
 ### System Updates and recovery
-- Track manual and scheduled APT upgrade attempts in a separate, bounded SQLite history database (6 or 12 months retention).
+- Track manual and scheduled APT upgrade attempts in a separate, bounded SQLite history database (1–52 weeks retention; 12 weeks by default).
 - Show automatic-update timer and one-shot service status on Updates and Overview. Failed units can be restarted after administrator re-authentication.
+- Installed update history is shown as compact, collapsed date-only cards; expand an entry to view each package and the APT summary.
+
+### Sessions
+- Session idle timeouts follow the selected 5/10/15/30/60-minute setting. Automatic polling does not extend sessions; genuine browser activity renews them, and the WebUI returns to the login screen on expiry.
 
 ### Storage and RAID
 - **v1.0.8:** Wipe Disk and Format Disk require an explicit Yes checkbox, administrator password, and independent protected-disk validation. Wipe removes signatures, not securely erased data. Format creates an ext4/XFS/Btrfs filesystem directly on the whole drive. Do not use on active NAS storage.
