@@ -1,0 +1,33 @@
+name: Build PiNAS v1.2.1 standalone update
+on:
+  push:
+    branches: [release/v1.2.1-login-password-visibility]
+permissions:
+  contents: write
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the standalone update
+        run: python3 tools/build_release.py
+      - name: Validate bundle, Python, browser JavaScript and all regression tests
+        run: |
+          python3 tools/build_release.py --check
+          python3 -m compileall -q src/pinas pinas.py tools tests
+          python3 -m unittest discover -s tests -v
+      - name: Commit compiled package
+        run: |
+          git add pinas.py
+          if git diff --cached --quiet; then
+            echo 'Standalone package already matches source.'
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Build PiNAS v1.2.1 standalone update'
+          git push origin HEAD:release/v1.2.1-login-password-visibility
