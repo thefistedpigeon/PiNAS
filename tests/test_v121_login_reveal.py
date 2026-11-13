@@ -55,16 +55,16 @@ class LoginPasswordRevealTests(unittest.TestCase):
         listener=PAGE.split(marker,1)[1].split("document.getElementById('auth').onsubmit=",1)[0]
         script="""
 const assert=require('node:assert/strict');
-const passwordField={type:'password',value:'My@Tricky"Password!42'};
+const stubPasswordField={type:'password',value:'My@Tricky"Password!42'};
 let submitCount=0;
 const attrs={};
-const passwordToggle={
+const stubPasswordToggle={
  title:'Show password',innerHTML:'show',
  setAttribute:(name,value)=>{attrs[name]=value;}
 };
 const PASSWORD_SHOW_ICON='show',PASSWORD_HIDE_ICON='hide';
-""" + marker.replace("const passwordField=document.getElementById('login-password'),passwordToggle=document.getElementById('toggle-login-password');","") + """
-const document={getElementById:(id)=>id==='login-password'?passwordField:id==='toggle-login-password'?passwordToggle:null};
+"""
+const document={getElementById:(id)=>id==='login-password'?stubPasswordField:id==='toggle-login-password'?stubPasswordToggle:null};
 """ + marker + listener + """
 assert.equal(passwordToggle.title,'Show password');
 passwordToggle.onclick();
