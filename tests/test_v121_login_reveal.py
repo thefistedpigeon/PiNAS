@@ -63,7 +63,6 @@ const stubPasswordToggle={
  setAttribute:(name,value)=>{attrs[name]=value;}
 };
 const PASSWORD_SHOW_ICON='show',PASSWORD_HIDE_ICON='hide';
-"""
 const document={getElementById:(id)=>id==='login-password'?stubPasswordField:id==='toggle-login-password'?stubPasswordToggle:null};
 """ + marker + listener + """
 assert.equal(passwordToggle.title,'Show password');
